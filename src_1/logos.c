@@ -890,7 +890,8 @@ VkFramebuffer* Logos_Framebuffers_Create(VkImageView* imageViews, uint32_t image
 // Function to show the window and handle the rendering loop
 void Logos_Window_Show()
 {
-    if (!logos_window) {
+    if (!logos_window)
+    {
         fprintf(stderr, "ERROR: You tried to show the window before creating it.\n");
         exit(EXIT_FAILURE);
     }
@@ -898,17 +899,20 @@ void Logos_Window_Show()
     // Get swapchain images
     uint32_t swapChainImageCount;
     VkResult result = vkGetSwapchainImagesKHR(logos_device, logos_swapChain, &swapChainImageCount, NULL);
-    if (result != VK_SUCCESS || swapChainImageCount == 0) {
+    if (result != VK_SUCCESS || swapChainImageCount == 0)
+    {
         fprintf(stderr, "Failed to get swapchain images\n");
         exit(EXIT_FAILURE);
     }
     VkImage* swapChainImages = malloc(sizeof(VkImage) * swapChainImageCount);
-    if (swapChainImages == NULL) {
+    if (swapChainImages == NULL)
+    {
         fprintf(stderr, "Failed to allocate memory for swapchain images\n");
         exit(EXIT_FAILURE);
     }
     result = vkGetSwapchainImagesKHR(logos_device, logos_swapChain, &swapChainImageCount, swapChainImages);
-    if (result != VK_SUCCESS) {
+    if (result != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to get swapchain images\n");
         free(swapChainImages);
         exit(EXIT_FAILURE);
@@ -916,7 +920,8 @@ void Logos_Window_Show()
 
     // Create image views
     VkImageView* swapChainImageViews = Logos_ImageViews_Create(swapChainImages, swapChainImageCount, logos_swapChainImageFormat);
-    if (swapChainImageViews == NULL) {
+    if (swapChainImageViews == NULL)
+    {
         fprintf(stderr, "Failed to create swap chain image views\n");
         free(swapChainImages);
         exit(EXIT_FAILURE);
@@ -924,7 +929,8 @@ void Logos_Window_Show()
 
     // Create framebuffers
     VkFramebuffer* swapChainFramebuffers = Logos_Framebuffers_Create(swapChainImageViews, swapChainImageCount, renderPass, logos_swapChainExtent);
-    if (swapChainFramebuffers == NULL) {
+    if (swapChainFramebuffers == NULL)
+    {
         fprintf(stderr, "Failed to create swap chain framebuffers\n");
         free(swapChainImageViews);
         free(swapChainImages);
@@ -933,7 +939,8 @@ void Logos_Window_Show()
 
     // Create command pool
     VkCommandPool commandPool = Logos_CommandPool_Create(graphicsQueueFamilyIndex);
-    if (commandPool == VK_NULL_HANDLE) {
+    if (commandPool == VK_NULL_HANDLE)
+    {
         fprintf(stderr, "Failed to create command pool\n");
         free(swapChainFramebuffers);
         free(swapChainImageViews);
@@ -943,7 +950,8 @@ void Logos_Window_Show()
 
     // Create command buffers
     VkCommandBuffer* commandBuffers = Logos_CommandBuffers_Create(commandPool, swapChainImageCount);
-    if (commandBuffers == NULL) {
+    if (commandBuffers == NULL)
+    {
         fprintf(stderr, "Failed to create command buffers\n");
         vkDestroyCommandPool(logos_device, commandPool, NULL);
         free(swapChainFramebuffers);
@@ -957,7 +965,8 @@ void Logos_Window_Show()
     VkDeviceMemory vertexBufferMemory;
     VkDeviceSize bufferSize = sizeof(vertices);
 
-    if (Private_createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vertexBuffer, &vertexBufferMemory) != VK_SUCCESS) {
+    if (Private_createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &vertexBuffer, &vertexBufferMemory) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to create vertex buffer\n");
         free(commandBuffers);
         vkDestroyCommandPool(logos_device, commandPool, NULL);
@@ -990,7 +999,8 @@ void Logos_Window_Show()
 
     if (vkCreateSemaphore(logos_device, &semaphoreInfo, NULL, &imageAvailableSemaphore) != VK_SUCCESS ||
         vkCreateSemaphore(logos_device, &semaphoreInfo, NULL, &renderFinishedSemaphore) != VK_SUCCESS ||
-        vkCreateFence(logos_device, &fenceInfo, NULL, &inFlightFence) != VK_SUCCESS) {
+        vkCreateFence(logos_device, &fenceInfo, NULL, &inFlightFence) != VK_SUCCESS)
+    {
         fprintf(stderr, "Failed to create synchronization objects\n");
         vkDestroyBuffer(logos_device, vertexBuffer, NULL);
         vkFreeMemory(logos_device, vertexBufferMemory, NULL);
@@ -1020,12 +1030,15 @@ void Logos_Window_Show()
         // Acquire next image
         uint32_t imageIndex;
         VkResult acquireResult = vkAcquireNextImageKHR(logos_device, logos_swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-        if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR || acquireResult == VK_SUBOPTIMAL_KHR) {
+        if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR || acquireResult == VK_SUBOPTIMAL_KHR)
+        {
             // Handle swapchain recreation here if needed
             fprintf(stderr, "Swapchain out of date or suboptimal. Consider recreating swapchain.\n");
             running = 0;
             continue;
-        } else if (acquireResult != VK_SUCCESS) {
+        }
+        else if (acquireResult != VK_SUCCESS)
+        {
             fprintf(stderr, "Failed to acquire swapchain image\n");
             running = 0;
             continue;
@@ -1048,7 +1061,8 @@ void Logos_Window_Show()
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores    = signalSemaphores;
 
-        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS) {
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS)
+        {
             fprintf(stderr, "Failed to submit draw command buffer\n");
             running = 0;
             continue;
@@ -1066,12 +1080,15 @@ void Logos_Window_Show()
         presentInfo.pImageIndices  = &imageIndex;
 
         VkResult presentResult = vkQueuePresentKHR(presentQueue, &presentInfo);
-        if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+        if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
+        {
             // Handle swapchain recreation here if needed
             fprintf(stderr, "Swapchain out of date or suboptimal during present. Consider recreating swapchain.\n");
             running = 0;
             continue;
-        } else if (presentResult != VK_SUCCESS) {
+        }
+        else if (presentResult != VK_SUCCESS)
+        {
             fprintf(stderr, "Failed to present swapchain image\n");
             running = 0;
             continue;
@@ -1148,33 +1165,11 @@ void test() {
     Logos_Instance_Create(logos_window);
     Logos_Device_Create();
     Logos_Swapchain_Create();
-
-    // Create Render Pass
     renderPass = Logos_RenderPass_Create();
-    if (renderPass == VK_NULL_HANDLE) {
-        fprintf(stderr, "Failed to create render pass\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Create Pipeline Layout
     pipelineLayout = Logos_PipelineLayout_Create();
-    if (pipelineLayout == VK_NULL_HANDLE) {
-        fprintf(stderr, "Failed to create pipeline layout\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Create Shader Modules
     VkShaderModule vertShaderModule = Private_createShaderModule("shaders/shader.vert.spv");
     VkShaderModule fragShaderModule = Private_createShaderModule("shaders/shader.frag.spv");
-
-    // Create Graphics Pipeline
     graphicsPipeline = Logos_GraphicsPipeline_Create(renderPass, pipelineLayout, vertShaderModule, fragShaderModule);
-    if (graphicsPipeline == VK_NULL_HANDLE) {
-        fprintf(stderr, "Failed to create graphics pipeline\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Destroy Shader Modules after pipeline creation
     vkDestroyShaderModule(logos_device, vertShaderModule, NULL);
     vkDestroyShaderModule(logos_device, fragShaderModule, NULL);
 

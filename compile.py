@@ -1,3 +1,4 @@
+
 import subprocess
 import os
 from colorama import Fore, init
@@ -713,11 +714,13 @@ class library:
             cmd("sudo apt-get install vulkan-tools",shell=True)
             if not cmd("vulkaninfo"):
                 cmd("sudo apt-get update",shell=True)
-                cmd("sudo apt-get install mesa-vulkan-drivers",shell=True)
+                cmd("sudo apt-get install mesa-vulkan-drivers libshaderc-dev shaderc-utils",shell=True)
                 if not cmd("vulkaninfo", shell=True):
                     print(Fore.RED + "could not install vulkan")
                     sys.exit()
             config["ldflags"] += " -lvulkan "
+            #-lshaderc_combined
+
 
 
         if platform.system() == "Darwin":
@@ -738,6 +741,15 @@ class library:
 
         if platform.system() == "Darwin":
             pass
+    def shaderc():
+        if platform.system() == "Windows":
+            pass
+        if platform.system() == "Linux":
+            print(Fore.YELLOW + f"Installing libshaderc-dev...")
+            cmd("sudo apt-get install -y libshaderc-dev", shell=True)
+            config["ldflags"] += " -lshaderc "
+        if platform.system() == "Darwin":
+            pass
 
 
 
@@ -745,6 +757,7 @@ if __name__ == "__main__":
     program.gpp()
     library.vulkan()
     library.sdl2()
+    library.shaderc()
 
     compile(config)
 
