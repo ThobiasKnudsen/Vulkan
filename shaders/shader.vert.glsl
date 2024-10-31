@@ -6,7 +6,7 @@ layout(location = 1) in vec2 inSize;            // Size in pixels
 layout(location = 2) in float inRotation;       // Rotation angle in degrees
 layout(location = 3) in float inCornerRadius;   // in pixels
 layout(location = 4) in vec4 inColor;           // Color as RGBA
-layout(location = 5) in uint inTexInfo;         // Texture information (if used)
+layout(location = 5) in uint inTexIndex;         // Texture information (if used)
 layout(location = 6) in vec4 inTexRect;         // Texture rectangle (u, v, width, height)
 
 // Outputs to fragment shader
@@ -47,9 +47,7 @@ void main() {
     
     fragColor = inColor;
     fragTexCoord = inTexRect.xy + (pos / inSize) * inTexRect.zw;
-    vs_out.tex_rect = in_tex_rect;
-    vs_out.tex_index = (uint(in_multiple_values>>8) & 0x000000FFu);
-    float corner_radius_pixels = float(uint(in_multiple_values>>16) & 0x0000FFFFu);
-    vs_out.corner_radius_width = corner_radius_pixels/float(in_w);
-    vs_out.corner_radius_height = corner_radius_pixels/float(in_h);
+    fragTexIndex = inTexIndex;
+    fragCornerRadiusWidth = inCornerRadius/float(ubo.targetWidth);
+    fragCornerRadiusWidth = inCornerRadius/float(ubo.targetHeight);
 }

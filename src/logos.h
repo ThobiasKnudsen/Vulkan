@@ -16,7 +16,7 @@ typedef struct {
     float rotation;     // rotation angle
     float corner_radius;// pixels
     uint32_t color;     // background color packed as RGBA8
-    uint32_t tex_info;  // texture ID and other info
+    uint32_t tex_index;  // texture ID and other info
     float tex_rect[4];  // texture rectangle (u, v, width, height)
 
 } InstanceData;
@@ -37,7 +37,7 @@ const InstanceData instances[] = {
         .rotation = 0.0f,
         .corner_radius = 10.f,
         .color = 0xFF0000FF, // Red color in RGBA8
-        .tex_info = 0,       // Texture ID 0 (no texture)
+        .tex_index = 0,       // Texture ID 0 (no texture)
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 2
@@ -47,7 +47,7 @@ const InstanceData instances[] = {
         .rotation = 45.0f,   // 45 degrees rotation
         .corner_radius = 10.f,
         .color = 0x00FF00FF, // Green color in RGBA8
-        .tex_info = 0,
+        .tex_index = 0,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Add more instances as needed
@@ -543,7 +543,7 @@ void test() {
             bindingDescriptions[0].stride    = sizeof(InstanceData);
             bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-            VkVertexInputAttributeDescription attributeDescriptions[6] = {0};
+            VkVertexInputAttributeDescription attributeDescriptions[7] = {0};
 
             // Instance data attributes
             // inPos (vec2)
@@ -580,7 +580,7 @@ void test() {
             attributeDescriptions[5].binding  = 0;
             attributeDescriptions[5].location = 5;
             attributeDescriptions[5].format   = VK_FORMAT_R32_UINT;
-            attributeDescriptions[5].offset   = offsetof(InstanceData, tex_info);
+            attributeDescriptions[5].offset   = offsetof(InstanceData, tex_index);
 
             // inTexRect (vec4)
             attributeDescriptions[6].binding  = 0;
