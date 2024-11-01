@@ -35,22 +35,31 @@ const InstanceData instances[] = {
         .pos = {0.0f, 0.0f},
         .size = {100.0f, 100.0f},
         .rotation = 0.0f,
-        .corner_radius = 10.f,
+        .corner_radius = 100.0f,
         .color = 0xFF0000FF, // Red color in RGBA8
+        .tex_index = 0,       // Texture ID 0 (no texture)
+        .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
+    },
+    // Instance 1
+    {
+        .pos = {100.0f, 100.0f},
+        .size = {100.0f, 100.0f},
+        .rotation = 30.0f,
+        .corner_radius = 100.0f,
+        .color = 0xFF00FF00, // Red color in RGBA8
         .tex_index = 0,       // Texture ID 0 (no texture)
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 2
     {
-        .pos = {100.f, 0.0f},
+        .pos = {200.f, 200.0f},
         .size = {100.0f, 100.0f},
-        .rotation = 45.0f,   // 45 degrees rotation
-        .corner_radius = 10.f,
-        .color = 0x00FF00FF, // Green color in RGBA8
+        .rotation = 60.0f,   // 45 degrees rotation
+        .corner_radius = 100.0f,
+        .color = 0xFFFF0000, // Green color in RGBA8
         .tex_index = 0,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
-    // Add more instances as needed
 };
 
 size_t readShaderSource(const char* filename, char** buffer) {
@@ -476,7 +485,7 @@ void test() {
 
         // Create Render Pass
         VkAttachmentDescription colorAttachment = {0};
-        colorAttachment.format = VK_FORMAT_B8G8R8A8_SRGB;
+        colorAttachment.format = swapChainImageFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -635,8 +644,17 @@ void test() {
             multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
             VkPipelineColorBlendAttachmentState colorBlendAttachment = {0};
-            colorBlendAttachment.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-            colorBlendAttachment.blendEnable         = VK_FALSE;
+            colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | 
+                                                  VK_COLOR_COMPONENT_G_BIT | 
+                                                  VK_COLOR_COMPONENT_B_BIT | 
+                                                  VK_COLOR_COMPONENT_A_BIT;
+            colorBlendAttachment.blendEnable = VK_TRUE;
+            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
             VkPipelineColorBlendStateCreateInfo colorBlending = {0};
             colorBlending.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -649,16 +667,24 @@ void test() {
             colorBlending.blendConstants[2] = 0.0f;
             colorBlending.blendConstants[3] = 0.0f;
 
+            VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+            depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+            depthStencil.depthTestEnable = VK_FALSE;
+            depthStencil.depthWriteEnable = VK_FALSE; // Disable depth writes
+            depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+            depthStencil.depthBoundsTestEnable = VK_FALSE;
+            depthStencil.stencilTestEnable = VK_FALSE;
+
             VkGraphicsPipelineCreateInfo pipelineInfo = {0};
             pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
             pipelineInfo.stageCount          = 2;
             pipelineInfo.pStages             = shaderStages;
-            pipelineInfo.pVertexInputState   = &vertexInputInfo;
+            pipelineInfo.pVertexInputState   = &vertexInputInfo; 
             pipelineInfo.pInputAssemblyState = &inputAssembly;
             pipelineInfo.pViewportState      = &viewportState;
             pipelineInfo.pRasterizationState = &rasterizer;
             pipelineInfo.pMultisampleState   = &multisampling;
-            pipelineInfo.pDepthStencilState  = NULL;
+            pipelineInfo.pDepthStencilState  = &depthStencil;
             pipelineInfo.pColorBlendState    = &colorBlending;
             pipelineInfo.pDynamicState       = NULL;
             pipelineInfo.layout              = pipelineLayout;

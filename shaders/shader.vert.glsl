@@ -48,6 +48,6 @@ void main() {
     fragColor = inColor;
     fragTexCoord = inTexRect.xy + (pos / inSize) * inTexRect.zw;
     fragTexIndex = inTexIndex;
-    fragCornerRadiusWidth = inCornerRadius/float(ubo.targetWidth);
-    fragCornerRadiusWidth = inCornerRadius/float(ubo.targetHeight);
+    fragCornerRadiusWidth = inCornerRadius/float((ubo.targetWidth+ubo.targetHeight)/2.0);
+    fragCornerRadiusHeight = inCornerRadius/float((ubo.targetWidth+ubo.targetHeight)/2.0);
 }

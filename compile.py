@@ -25,6 +25,7 @@ bash_bash    = "C:/Program Files/Git/bin/bash.exe"
 _7zip        = "C:\\Program Files\\7-Zip\\7z.exe"
 cl           = "\"C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\Build\\vcvars64.bat\""
 vcpkg        = f"\"{cwd_win}\\external\\vcpkg\\vcpkg.exe\""
+
 def cl_exe_path():
     vswhere_path = "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe"
     if not os.path.isfile(vswhere_path):
@@ -335,7 +336,6 @@ class program:
                     sys.exit()
         if platform.system() == "Darwin":
             pass
-
     def gcc():
         if not cmd("gcc --version"):
             if not bash(f"gcc --version"):
@@ -485,7 +485,6 @@ class program:
         if platform.system() == "Darwin":
             print("vcpkg should not be installed on MacOS")
             sys.exit()
-
 
 class library:
     def tcc():
@@ -711,31 +710,24 @@ class library:
         if platform.system() == "Windows":
             pass
         if platform.system() == "Linux":
+            cmd("sudo apt-get update",shell=True)
+            cmd("sudo apt-get install mesa-vulkan-drivers libvulkan1 vulkan-tools vulkan-validationlayers libshaderc-dev",shell=True)
             cmd("sudo apt-get install vulkan-tools",shell=True)
-            if not cmd("vulkaninfo"):
-                cmd("sudo apt-get update",shell=True)
-                cmd("sudo apt-get install mesa-vulkan-drivers libshaderc-dev shaderc-utils",shell=True)
-                if not cmd("vulkaninfo", shell=True):
-                    print(Fore.RED + "could not install vulkan")
-                    sys.exit()
+            if not cmd("vulkaninfo", shell=True):
+                print(Fore.RED + "could not install vulkan")
+                sys.exit()
             config["ldflags"] += " -lvulkan "
-            #-lshaderc_combined
-
-
-
         if platform.system() == "Darwin":
             pass
     def sdl2():
         if platform.system() == "Windows":
             pass
         if platform.system() == "Linux":
-            cmd("sudo apt-get install vulkan-tools",shell=True)
+            cmd("sudo apt-get update",shell=True)
+            cmd("sudo apt-get install libsdl2-2.0-0 libsdl2-dev",shell=True)
             if not cmd("dpkg -l | grep libsdl2", shell=True):
-                cmd("sudo apt-get update",shell=True)
-                cmd("sudo apt-get install libsdl2-2.0-0 libsdl2-dev",shell=True)
-                if not cmd("dpkg -l | grep libsdl2", shell=True):
-                    print(Fore.RED + "could not install vulkan")
-                    sys.exit()
+                print(Fore.RED + "could not install vulkan")
+                sys.exit()
             config["ldflags"] += " -lSDL2 "
 
 
@@ -750,8 +742,6 @@ class library:
             config["ldflags"] += " -lshaderc "
         if platform.system() == "Darwin":
             pass
-
-
 
 if __name__ == "__main__":
     program.gpp()
