@@ -16,9 +16,8 @@ typedef struct {
     float rotation;     // rotation angle
     float corner_radius;// pixels
     uint32_t color;     // background color packed as RGBA8
-    uint32_t tex_index;  // texture ID and other info
+    uint32_t tex_index; // texture ID and other info
     float tex_rect[4];  // texture rectangle (u, v, width, height)
-
 } InstanceData;
 
 typedef struct {
@@ -28,16 +27,17 @@ typedef struct {
     float padding[2];
 } UniformBufferObject;
 
-// Instances array
-const InstanceData instances[] = {
-    // Instance 1
+// All instances array
+#define ALL_INSTANCE_COUNT 5
+const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
+    // Instance 0
     {
         .pos = {0.0f, 0.0f},
         .size = {100.0f, 100.0f},
         .rotation = 0.0f,
         .corner_radius = 100.0f,
         .color = 0xFF0000FF, // Red color in RGBA8
-        .tex_index = 0,       // Texture ID 0 (no texture)
+        .tex_index = 0,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 1
@@ -46,21 +46,151 @@ const InstanceData instances[] = {
         .size = {100.0f, 100.0f},
         .rotation = 30.0f,
         .corner_radius = 100.0f,
-        .color = 0xFF00FF00, // Red color in RGBA8
-        .tex_index = 0,       // Texture ID 0 (no texture)
+        .color = 0xFF00FF00, // Green color in RGBA8
+        .tex_index = 0,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 2
     {
         .pos = {200.f, 200.0f},
         .size = {100.0f, 100.0f},
-        .rotation = 60.0f,   // 45 degrees rotation
+        .rotation = 60.0f,
         .corner_radius = 100.0f,
-        .color = 0xFFFF0000, // Green color in RGBA8
+        .color = 0xFFFF0000, // Blue color in RGBA8
+        .tex_index = 0,
+        .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
+    },
+    // Instance 3
+    {
+        .pos = {300.0f, 300.0f},
+        .size = {100.0f, 100.0f},
+        .rotation = 90.0f,
+        .corner_radius = 100.0f,
+        .color = 0xFFFFFF00, // Cyan color in RGBA8
+        .tex_index = 0,
+        .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
+    },
+    // Instance 4
+    {
+        .pos = {400.0f, 400.0f},
+        .size = {100.0f, 100.0f},
+        .rotation = 120.0f,
+        .corner_radius = 100.0f,
+        .color = 0xFF00FFFF, // Yellow color in RGBA8
         .tex_index = 0,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
 };
+
+static SDL_Window*                 window                      = NULL;
+static VkInstance                  instance                    = VK_NULL_HANDLE;
+static VkDebugUtilsMessengerEXT    debugMessenger              = VK_NULL_HANDLE;
+static VkSurfaceKHR                surface                     = VK_NULL_HANDLE;
+static VkPhysicalDevice            physicalDevice              = VK_NULL_HANDLE;
+static uint32_t                    graphicsQueueFamilyIndex    = UINT32_MAX;
+static uint32_t                    presentQueueFamilyIndex     = UINT32_MAX;
+static VkDevice                    device                      = VK_NULL_HANDLE;
+static VkQueue                     graphicsQueue               = VK_NULL_HANDLE;
+static VkQueue                     presentQueue                = VK_NULL_HANDLE;
+static VkPipelineLayout            pipelineLayout              = VK_NULL_HANDLE;
+static VkRenderPass                renderPass                  = VK_NULL_HANDLE;
+static VkPipeline                  graphicsPipelineHandle      = VK_NULL_HANDLE;
+static VkSwapchainKHR              swapChain                   = VK_NULL_HANDLE;
+static VkFormat                    swapChainImageFormat        = VK_FORMAT_B8G8R8A8_SRGB;
+static VkExtent2D                  swapChainExtent             = {800, 600};
+static uint32_t                    swapChainImageCount         = 0;
+static VkImage*                    swapChainImages             = NULL;
+static VkImageView*                swapChainImageViews         = NULL;
+static VkFramebuffer*              swapChainFramebuffers       = NULL;
+static VkCommandPool               commandPool                 = VK_NULL_HANDLE;
+static VkCommandBuffer*            commandBuffers              = NULL;
+static VkBuffer                    instanceBuffer              = VK_NULL_HANDLE;
+static VkDeviceMemory              instanceBufferMemory        = VK_NULL_HANDLE;
+static VkBuffer                    uniformBuffer               = VK_NULL_HANDLE;
+static VkDeviceMemory              uniformBufferMemory         = VK_NULL_HANDLE;
+static VkDescriptorSetLayout       descriptorSetLayout         = {};
+static VkDescriptorPool            descriptorPool              = VK_NULL_HANDLE;
+static VkDescriptorSet             descriptorSet               = VK_NULL_HANDLE;
+static VkSemaphore                 imageAvailableSemaphore     = VK_NULL_HANDLE;
+static VkSemaphore                 renderFinishedSemaphore     = VK_NULL_HANDLE;
+static VkFence                     inFlightFence               = VK_NULL_HANDLE;
+
+// Indices array
+#define INDICES_COUNT 3
+uint32_t indices[INDICES_COUNT] = { 0, 2, 4 }; // Indices of instances to draw
+
+// Instances array and count
+InstanceData* instances = NULL;
+size_t instanceCount = 0;
+
+void cleanup(){
+    if (device != VK_NULL_HANDLE)
+        vkDeviceWaitIdle(device);
+    if (inFlightFence != VK_NULL_HANDLE) 
+        vkDestroyFence(device, inFlightFence, NULL);
+    if (renderFinishedSemaphore != VK_NULL_HANDLE) 
+        vkDestroySemaphore(device, renderFinishedSemaphore, NULL);
+    if (imageAvailableSemaphore != VK_NULL_HANDLE)
+        vkDestroySemaphore(device, imageAvailableSemaphore, NULL);
+    if (commandBuffers != NULL) {
+        vkFreeCommandBuffers(device, commandPool, swapChainImageCount, commandBuffers);
+        free(commandBuffers);
+    }
+    if (commandPool != VK_NULL_HANDLE) 
+        vkDestroyCommandPool(device, commandPool, NULL);
+    if (swapChainFramebuffers != NULL) {
+        for (uint32_t i = 0; i < swapChainImageCount; i++) {
+            if (swapChainFramebuffers[i] != VK_NULL_HANDLE)
+                vkDestroyFramebuffer(device, swapChainFramebuffers[i], NULL);
+        }
+        free(swapChainFramebuffers);
+    }
+    if (swapChainImageViews != NULL) {
+        for (uint32_t i = 0; i < swapChainImageCount; i++) {
+            if (swapChainImageViews[i] != VK_NULL_HANDLE)
+                vkDestroyImageView(device, swapChainImageViews[i], NULL);
+        }
+        free(swapChainImageViews);
+    }
+    if (swapChain != VK_NULL_HANDLE)
+        vkDestroySwapchainKHR(device, swapChain, NULL);
+    if (graphicsPipelineHandle != VK_NULL_HANDLE) 
+        vkDestroyPipeline(device, graphicsPipelineHandle, NULL);
+    if (renderPass != VK_NULL_HANDLE)
+        vkDestroyRenderPass(device, renderPass, NULL);
+    if (pipelineLayout != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(device, pipelineLayout, NULL);
+    if (instanceBuffer != VK_NULL_HANDLE) 
+        vkDestroyBuffer(device, instanceBuffer, NULL);
+    if (instanceBufferMemory != VK_NULL_HANDLE) 
+        vkFreeMemory(device, instanceBufferMemory, NULL);
+    if (instances != NULL) {
+        free(instances);
+        instances = NULL;
+    }
+    if (descriptorPool != VK_NULL_HANDLE)
+        vkDestroyDescriptorPool(device, descriptorPool, NULL);
+    if (descriptorSetLayout != VK_NULL_HANDLE)
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, NULL);
+    if (uniformBuffer != VK_NULL_HANDLE)
+        vkDestroyBuffer(device, uniformBuffer, NULL);
+    if (uniformBufferMemory != VK_NULL_HANDLE)
+        vkFreeMemory(device, uniformBufferMemory, NULL);
+    if (device != VK_NULL_HANDLE)
+        vkDestroyDevice(device, NULL);
+    if (surface != VK_NULL_HANDLE)
+        vkDestroySurfaceKHR(instance, surface, NULL);
+    if (debugMessenger != VK_NULL_HANDLE) {
+        PFN_vkDestroyDebugUtilsMessengerEXT funcDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+        if (funcDestroyDebugUtilsMessengerEXT != NULL)
+            funcDestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
+    }
+    if (instance != VK_NULL_HANDLE)
+        vkDestroyInstance(instance, NULL);
+    if (window != NULL)
+        SDL_DestroyWindow(window);
+    SDL_Quit();
+}
 
 size_t readShaderSource(const char* filename, char** buffer) {
     FILE* file = fopen(filename, "r");
@@ -155,45 +285,78 @@ uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, Vk
         }
     }
 
-    ("Failed to find suitable memory type!");
+    printf("Failed to find suitable memory type!");
+    exit(EXIT_FAILURE);
+}
+
+void updateInstances(VkDevice device, VkPhysicalDevice physicalDevice) {
+    if (instances != NULL) {
+        free(instances);
+        instances = NULL;
+    }
+
+    instanceCount = INDICES_COUNT;
+    instances = malloc(instanceCount * sizeof(InstanceData));
+    if (instances == NULL) {
+        printf("Failed to allocate memory for instances\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (size_t i = 0; i < instanceCount; ++i) {
+        instances[i] = all_instances[indices[i]];
+    }
+
+    VkDeviceSize bufferSize = instanceCount * sizeof(InstanceData);
+
+    // Destroy previous instance buffer and memory if they exist
+    if (instanceBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, instanceBuffer, NULL);
+        instanceBuffer = VK_NULL_HANDLE;
+    }
+    if (instanceBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, instanceBufferMemory, NULL);
+        instanceBufferMemory = VK_NULL_HANDLE;
+    }
+
+    // Create the buffer
+    VkBufferCreateInfo bufferInfo = {0};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = bufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(device, &bufferInfo, NULL, &instanceBuffer) != VK_SUCCESS) {
+        printf("Failed to create instance buffer\n");
+        exit(EXIT_FAILURE);
+    }
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, instanceBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo = {0};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(
+        physicalDevice, memRequirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+
+    if (vkAllocateMemory(device, &allocInfo, NULL, &instanceBufferMemory) != VK_SUCCESS) {
+        printf("Failed to allocate instance buffer memory\n");
+        exit(EXIT_FAILURE);
+    }
+
+    vkBindBufferMemory(device, instanceBuffer, instanceBufferMemory, 0);
+
+    // Map memory and copy instance data
+    void* data;
+    vkMapMemory(device, instanceBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, instances, (size_t)bufferSize);
+    vkUnmapMemory(device, instanceBufferMemory);
 }
 
 // Main function with all steps merged
 void test() {
-
-    SDL_Window*                 window                      = NULL;
-    VkInstance                  instance                    = VK_NULL_HANDLE;
-    VkDebugUtilsMessengerEXT    debugMessenger              = VK_NULL_HANDLE;
-    VkSurfaceKHR                surface                     = VK_NULL_HANDLE;
-    VkPhysicalDevice            physicalDevice              = VK_NULL_HANDLE;
-    uint32_t                    graphicsQueueFamilyIndex    = UINT32_MAX;
-    uint32_t                    presentQueueFamilyIndex     = UINT32_MAX;
-    VkDevice                    device                      = VK_NULL_HANDLE;
-    VkQueue                     graphicsQueue               = VK_NULL_HANDLE;
-    VkQueue                     presentQueue                = VK_NULL_HANDLE;
-    VkPipelineLayout            pipelineLayout              = VK_NULL_HANDLE;
-    VkRenderPass                renderPass                  = VK_NULL_HANDLE;
-    VkPipeline                  graphicsPipelineHandle      = VK_NULL_HANDLE;
-    VkSwapchainKHR              swapChain                   = VK_NULL_HANDLE;
-    VkFormat                    swapChainImageFormat        = VK_FORMAT_B8G8R8A8_SRGB;
-    VkExtent2D                  swapChainExtent             = {800, 600};
-    uint32_t                    swapChainImageCount         = 0;
-    VkImage*                    swapChainImages             = NULL;
-    VkImageView*                swapChainImageViews         = NULL;
-    VkFramebuffer*              swapChainFramebuffers       = NULL;
-    VkCommandPool               commandPool                 = VK_NULL_HANDLE;
-    VkCommandBuffer*            commandBuffers              = NULL;
-    VkBuffer                    instanceBuffer              = VK_NULL_HANDLE;
-    VkDeviceMemory              instanceBufferMemory        = VK_NULL_HANDLE;
-    VkBuffer                    uniformBuffer               = VK_NULL_HANDLE;
-    VkDeviceMemory              uniformBufferMemory         = VK_NULL_HANDLE;
-    VkDescriptorSetLayout       descriptorSetLayout         = {};
-    VkDescriptorPool            descriptorPool              = VK_NULL_HANDLE;
-    VkDescriptorSet             descriptorSet               = VK_NULL_HANDLE;
-    VkSemaphore                 imageAvailableSemaphore     = VK_NULL_HANDLE;
-    VkSemaphore                 renderFinishedSemaphore     = VK_NULL_HANDLE;
-    VkFence                     inFlightFence               = VK_NULL_HANDLE;
-
     // Initialize SDL
     {
         if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -240,19 +403,19 @@ void test() {
         uint32_t sdlExtensionCount = 0;
         if (!SDL_Vulkan_GetInstanceExtensions(window, &sdlExtensionCount, NULL)) {
             printf("Failed to get SDL Vulkan instance extensions: %s\n", SDL_GetError());
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         const char** sdlExtensions = (const char**)malloc(sizeof(const char*) * sdlExtensionCount);
         if (sdlExtensions == NULL) {
             printf("Failed to allocate memory for SDL Vulkan extensions\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         if (!SDL_Vulkan_GetInstanceExtensions(window, &sdlExtensionCount, sdlExtensions)) {
             printf("Failed to get SDL Vulkan instance extensions: %s\n", SDL_GetError());
             free(sdlExtensions);
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         // Optional: Add VK_EXT_debug_utils_EXTENSION_NAME for debugging
@@ -262,7 +425,7 @@ void test() {
         if (allExtensions == NULL) {
             printf("Failed to allocate memory for all Vulkan extensions\n");
             free(sdlExtensions);
-            goto cleanup;
+            cleanup();exit(-1);
         }
         memcpy(allExtensions, sdlExtensions, sizeof(const char*) * sdlExtensionCount);
         allExtensions[sdlExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
@@ -298,7 +461,7 @@ void test() {
         free(allExtensions);
         if (result != VK_SUCCESS) {
             printf("Failed to create Vulkan instance\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         // Function pointer for vkCreateDebugUtilsMessengerEXT
@@ -306,7 +469,7 @@ void test() {
         if (funcCreateDebugUtilsMessengerEXT != NULL) {
             if (funcCreateDebugUtilsMessengerEXT(instance, &debugCreateInfo, NULL, &debugMessenger) != VK_SUCCESS) {
                 printf("Failed to set up debug messenger\n");
-                goto cleanup;
+                cleanup();exit(-1);
             }
         } 
         else {
@@ -318,7 +481,7 @@ void test() {
     // Create Vulkan surface
     if (!SDL_Vulkan_CreateSurface(window, instance, &surface)) {
         printf( "Failed to create Vulkan surface: %s\n", SDL_GetError());
-        goto cleanup;
+        cleanup();exit(-1);
     }
 
     // Select physical device
@@ -337,13 +500,13 @@ void test() {
         VkPhysicalDevice* devices = malloc(sizeof(VkPhysicalDevice) * deviceCount);
         if (devices == NULL) {
             printf( "Failed to allocate memory for physical devices\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
         result = vkEnumeratePhysicalDevices(instance, &deviceCount, devices);
         if (result != VK_SUCCESS) {
             printf( "Failed to enumerate physical devices\n");
             free(devices);
-            goto cleanup;
+            cleanup();exit(-1);
         }
         physicalDevice = devices[0]; // Select the first suitable device
         free(devices);
@@ -355,12 +518,12 @@ void test() {
         vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, NULL);
         if (queueFamilyCount == 0) {
             printf( "Failed to find any queue families\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
         VkQueueFamilyProperties* queueFamilies = malloc(sizeof(VkQueueFamilyProperties) * queueFamilyCount);
         if (queueFamilies == NULL) {
             printf( "Failed to allocate memory for queue family properties\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
         vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies);
 
@@ -385,7 +548,7 @@ void test() {
 
         if (graphicsQueueFamilyIndex == UINT32_MAX || presentQueueFamilyIndex == UINT32_MAX) {
             printf( "Failed to find suitable queue families\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
     }
 
@@ -399,32 +562,32 @@ void test() {
 
         if (graphicsQueueFamilyIndex == presentQueueFamilyIndex) {
             memset(&queueCreateInfos[0], 0, sizeof(VkDeviceQueueCreateInfo));
-            queueCreateInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfos[0].pNext = NULL;
-            queueCreateInfos[0].flags = 0;
-            queueCreateInfos[0].queueFamilyIndex = graphicsQueueFamilyIndex;
-            queueCreateInfos[0].queueCount = 1;
-            queueCreateInfos[0].pQueuePriorities = &queuePriority;
-            queueCreateInfoCount = 1;
+            queueCreateInfos[0].sType               = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfos[0].pNext               = NULL;
+            queueCreateInfos[0].flags               = 0;
+            queueCreateInfos[0].queueFamilyIndex    = graphicsQueueFamilyIndex;
+            queueCreateInfos[0].queueCount          = 1;
+            queueCreateInfos[0].pQueuePriorities    = &queuePriority;
+            queueCreateInfoCount                    = 1;
         } else {
             memset(&queueCreateInfos[0], 0, sizeof(VkDeviceQueueCreateInfo));
             memset(&queueCreateInfos[1], 0, sizeof(VkDeviceQueueCreateInfo));
 
             // First queue for graphics
-            queueCreateInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfos[0].pNext = NULL;
-            queueCreateInfos[0].flags = 0;
-            queueCreateInfos[0].queueFamilyIndex = graphicsQueueFamilyIndex;
-            queueCreateInfos[0].queueCount = 1;
-            queueCreateInfos[0].pQueuePriorities = &queuePriority;
+            queueCreateInfos[0].sType               = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfos[0].pNext               = NULL;
+            queueCreateInfos[0].flags               = 0;
+            queueCreateInfos[0].queueFamilyIndex    = graphicsQueueFamilyIndex;
+            queueCreateInfos[0].queueCount          = 1;
+            queueCreateInfos[0].pQueuePriorities    = &queuePriority;
 
             // Second queue for presentation
-            queueCreateInfos[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfos[1].pNext = NULL;
-            queueCreateInfos[1].flags = 0;
-            queueCreateInfos[1].queueFamilyIndex = presentQueueFamilyIndex;
-            queueCreateInfos[1].queueCount = 1;
-            queueCreateInfos[1].pQueuePriorities = &queuePriority;
+            queueCreateInfos[1].sType               = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            queueCreateInfos[1].pNext               = NULL;
+            queueCreateInfos[1].flags               = 0;
+            queueCreateInfos[1].queueFamilyIndex    = presentQueueFamilyIndex;
+            queueCreateInfos[1].queueCount          = 1;
+            queueCreateInfos[1].pQueuePriorities    = &queuePriority;
 
             queueCreateInfoCount = 2;
         }
@@ -435,94 +598,94 @@ void test() {
         uint32_t deviceExtensionCount = sizeof(deviceExtensions) / sizeof(deviceExtensions[0]);
 
         VkDeviceCreateInfo deviceCreateInfo = {0};
-        deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        deviceCreateInfo.pQueueCreateInfos = queueCreateInfos;
-        deviceCreateInfo.queueCreateInfoCount = queueCreateInfoCount;
-        deviceCreateInfo.enabledExtensionCount = deviceExtensionCount;
-        deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
-        deviceCreateInfo.enabledLayerCount = 0;
-        deviceCreateInfo.ppEnabledLayerNames = NULL;
-        deviceCreateInfo.pNext = NULL; // Ensure pNext is NULL
+        deviceCreateInfo.sType                      = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        deviceCreateInfo.pQueueCreateInfos          = queueCreateInfos;
+        deviceCreateInfo.queueCreateInfoCount       = queueCreateInfoCount;
+        deviceCreateInfo.enabledExtensionCount      = deviceExtensionCount;
+        deviceCreateInfo.ppEnabledExtensionNames    = deviceExtensions;
+        deviceCreateInfo.enabledLayerCount          = 0;
+        deviceCreateInfo.ppEnabledLayerNames        = NULL;
+        deviceCreateInfo.pNext                      = NULL; // Ensure pNext is NULL
 
         result = vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &device);
         if (result != VK_SUCCESS) {
             printf( "Failed to create logical device\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         vkGetDeviceQueue(device, graphicsQueueFamilyIndex, 0, &graphicsQueue);
         vkGetDeviceQueue(device, presentQueueFamilyIndex, 0, &presentQueue);
 
-        // desciptor set layout
+        // Descriptor set layout
         VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-        uboLayoutBinding.binding = 0; // Binding 0 in the shader
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // Used in vertex shader
+        uboLayoutBinding.binding            = 0; // Binding 0 in the shader
+        uboLayoutBinding.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount    = 1;
+        uboLayoutBinding.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT; // Used in vertex shader
         uboLayoutBinding.pImmutableSamplers = NULL;
 
         VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &uboLayoutBinding;
+        layoutInfo.pBindings    = &uboLayoutBinding;
 
         if (vkCreateDescriptorSetLayout(device, &layoutInfo, NULL, &descriptorSetLayout) != VK_SUCCESS) {
             printf("Failed to create descriptor set layout\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 1; // One descriptor set layout
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-        pipelineLayoutInfo.pushConstantRangeCount = 0;
-        pipelineLayoutInfo.pPushConstantRanges = NULL;
+        pipelineLayoutInfo.sType                    = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount           = 1; // One descriptor set layout
+        pipelineLayoutInfo.pSetLayouts              = &descriptorSetLayout;
+        pipelineLayoutInfo.pushConstantRangeCount   = 0;
+        pipelineLayoutInfo.pPushConstantRanges      = NULL;
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, NULL, &pipelineLayout) != VK_SUCCESS) {
             printf("Failed to create pipeline layout\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         // Create Render Pass
-        VkAttachmentDescription colorAttachment = {0};
-        colorAttachment.format = swapChainImageFormat;
-        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        VkAttachmentDescription colorAttachment     = {0};
+        colorAttachment.format                      = swapChainImageFormat;
+        colorAttachment.samples                     = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.loadOp                      = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachment.storeOp                     = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachment.stencilLoadOp               = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachment.stencilStoreOp              = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachment.initialLayout               = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachment.finalLayout                 = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-        VkAttachmentReference colorAttachmentRef = {0};
-        colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference colorAttachmentRef    = {0};
+        colorAttachmentRef.attachment               = 0;
+        colorAttachmentRef.layout                   = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-        VkSubpassDescription subpass = {0};
-        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments = &colorAttachmentRef;
+        VkSubpassDescription subpass    = {0};
+        subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount    = 1;
+        subpass.pColorAttachments       = &colorAttachmentRef;
 
-        VkSubpassDependency dependency = {0};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        VkSubpassDependency dependency  = {0};
+        dependency.srcSubpass           = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass           = 0;
+        dependency.srcStageMask         = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask        = 0;
+        dependency.dstStageMask         = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask        = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-        VkRenderPassCreateInfo renderPassInfo = {0};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 1;
-        renderPassInfo.pAttachments = &colorAttachment;
-        renderPassInfo.subpassCount = 1;
-        renderPassInfo.pSubpasses = &subpass;
-        renderPassInfo.dependencyCount = 1;
-        renderPassInfo.pDependencies = &dependency;
+        VkRenderPassCreateInfo renderPassInfo   = {0};
+        renderPassInfo.sType                    = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount          = 1;
+        renderPassInfo.pAttachments             = &colorAttachment;
+        renderPassInfo.subpassCount             = 1;
+        renderPassInfo.pSubpasses               = &subpass;
+        renderPassInfo.dependencyCount          = 1;
+        renderPassInfo.pDependencies            = &dependency;
 
         if (vkCreateRenderPass(device, &renderPassInfo, NULL, &renderPass) != VK_SUCCESS) {
             printf( "Failed to create render pass\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         // Create shader modules
@@ -533,24 +696,24 @@ void test() {
         VkPipeline graphicsPipeline = VK_NULL_HANDLE;
         {
             VkPipelineShaderStageCreateInfo vertShaderStageInfo = {0};
-            vertShaderStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            vertShaderStageInfo.stage  = VK_SHADER_STAGE_VERTEX_BIT;
-            vertShaderStageInfo.module = vertShaderModule;
-            vertShaderStageInfo.pName  = "main";
+            vertShaderStageInfo.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            vertShaderStageInfo.stage                           = VK_SHADER_STAGE_VERTEX_BIT;
+            vertShaderStageInfo.module                          = vertShaderModule;
+            vertShaderStageInfo.pName                           = "main";
 
             VkPipelineShaderStageCreateInfo fragShaderStageInfo = {0};
-            fragShaderStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            fragShaderStageInfo.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
-            fragShaderStageInfo.module = fragShaderModule;
-            fragShaderStageInfo.pName  = "main";
+            fragShaderStageInfo.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            fragShaderStageInfo.stage                           = VK_SHADER_STAGE_FRAGMENT_BIT;
+            fragShaderStageInfo.module                          = fragShaderModule;
+            fragShaderStageInfo.pName                           = "main";
 
             VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
             // Vertex input bindings and attributes for instance data
-            VkVertexInputBindingDescription bindingDescriptions[1] = {0};
-            bindingDescriptions[0].binding   = 0;
-            bindingDescriptions[0].stride    = sizeof(InstanceData);
-            bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+            VkVertexInputBindingDescription bindingDescriptions[1]  = {0};
+            bindingDescriptions[0].binding                          = 0;
+            bindingDescriptions[0].stride                           = sizeof(InstanceData);
+            bindingDescriptions[0].inputRate                        = VK_VERTEX_INPUT_RATE_INSTANCE;
 
             VkVertexInputAttributeDescription attributeDescriptions[7] = {0};
 
@@ -648,13 +811,13 @@ void test() {
                                                   VK_COLOR_COMPONENT_G_BIT | 
                                                   VK_COLOR_COMPONENT_B_BIT | 
                                                   VK_COLOR_COMPONENT_A_BIT;
-            colorBlendAttachment.blendEnable = VK_TRUE;
-            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-            colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-            colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-            colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+            colorBlendAttachment.blendEnable            = VK_TRUE;
+            colorBlendAttachment.srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA;
+            colorBlendAttachment.dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            colorBlendAttachment.colorBlendOp           = VK_BLEND_OP_ADD;
+            colorBlendAttachment.srcAlphaBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA;
+            colorBlendAttachment.dstAlphaBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            colorBlendAttachment.alphaBlendOp           = VK_BLEND_OP_ADD;
 
             VkPipelineColorBlendStateCreateInfo colorBlending = {0};
             colorBlending.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -668,12 +831,12 @@ void test() {
             colorBlending.blendConstants[3] = 0.0f;
 
             VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-            depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-            depthStencil.depthTestEnable = VK_FALSE;
-            depthStencil.depthWriteEnable = VK_FALSE; // Disable depth writes
-            depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-            depthStencil.depthBoundsTestEnable = VK_FALSE;
-            depthStencil.stencilTestEnable = VK_FALSE;
+            depthStencil.sType                  = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+            depthStencil.depthTestEnable        = VK_FALSE;
+            depthStencil.depthWriteEnable       = VK_FALSE; // Disable depth writes
+            depthStencil.depthCompareOp         = VK_COMPARE_OP_LESS;
+            depthStencil.depthBoundsTestEnable  = VK_FALSE;
+            depthStencil.stencilTestEnable      = VK_FALSE;
 
             VkGraphicsPipelineCreateInfo pipelineInfo = {0};
             pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -695,7 +858,7 @@ void test() {
 
             if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
                 printf( "Failed to create graphics pipeline\n");
-                goto cleanup;
+                cleanup();exit(-1);
             }
 
             graphicsPipelineHandle = graphicsPipeline;
@@ -712,7 +875,7 @@ void test() {
         VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
         if (result != VK_SUCCESS) {
             printf( "Failed to get surface capabilities\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         if (surfaceCapabilities.currentExtent.width != UINT32_MAX) {
@@ -726,12 +889,12 @@ void test() {
         vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, NULL);
         if (formatCount == 0) {
             printf( "Failed to find surface formats\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
         VkSurfaceFormatKHR* formats = malloc(sizeof(VkSurfaceFormatKHR) * formatCount);
         if (formats == NULL) {
             printf( "Failed to allocate memory for surface formats\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
         vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount, formats);
         swapChainImageFormat = formats[0].format; // Choose the first format
@@ -768,7 +931,7 @@ void test() {
         result = vkCreateSwapchainKHR(device, &swapchainCreateInfo, NULL, &swapChain);
         if (result != VK_SUCCESS) {
             printf( "ERROR: Failed to create swapchain\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
     }
 
@@ -777,19 +940,19 @@ void test() {
         VkResult result = vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, NULL);
         if (result != VK_SUCCESS || swapChainImageCount == 0) {
             printf( "Failed to get swapchain images\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         swapChainImages = malloc(sizeof(VkImage) * swapChainImageCount);
         if (swapChainImages == NULL) {
             printf( "Failed to allocate memory for swapchain images\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         result = vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, swapChainImages);
         if (result != VK_SUCCESS) {
             printf( "Failed to get swapchain images\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
     }
 
@@ -798,7 +961,7 @@ void test() {
         swapChainImageViews = malloc(sizeof(VkImageView) * swapChainImageCount);
         if (swapChainImageViews == NULL) {
             printf( "Failed to allocate memory for image views\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         for (uint32_t i = 0; i < swapChainImageCount; i++) {
@@ -819,7 +982,7 @@ void test() {
 
             if (vkCreateImageView(device, &viewInfo, NULL, &swapChainImageViews[i]) != VK_SUCCESS) {
                 printf( "Failed to create image views\n");
-                goto cleanup;
+                cleanup();exit(-1);
             }
         }
     }
@@ -829,7 +992,7 @@ void test() {
         swapChainFramebuffers = malloc(sizeof(VkFramebuffer) * swapChainImageCount);
         if (swapChainFramebuffers == NULL) {
             printf( "Failed to allocate memory for framebuffers\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         for (uint32_t i = 0; i < swapChainImageCount; i++) {
@@ -846,7 +1009,7 @@ void test() {
 
             if (vkCreateFramebuffer(device, &framebufferInfo, NULL, &swapChainFramebuffers[i]) != VK_SUCCESS) {
                 printf( "Failed to create framebuffer\n");
-                goto cleanup;
+                cleanup();exit(-1);
             }
         }
     }
@@ -864,7 +1027,7 @@ void test() {
 
         if (vkCreateBuffer(device, &bufferInfo, NULL, &uniformBuffer) != VK_SUCCESS) {
             printf("Failed to create uniform buffer!");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         // Get memory requirements
@@ -882,7 +1045,7 @@ void test() {
 
         if (vkAllocateMemory(device, &allocInfo, NULL, &uniformBufferMemory) != VK_SUCCESS) {
             printf("Failed to allocate uniform buffer memory!");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         // Bind buffer with memory
@@ -903,7 +1066,7 @@ void test() {
 
         if (vkCreateDescriptorPool(device, &poolInfo, NULL, &descriptorPool) != VK_SUCCESS) {
             printf("Failed to create descriptor pool\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
     }
     
@@ -917,7 +1080,7 @@ void test() {
 
         if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
             printf("Failed to allocate descriptor set\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         // Update Descriptor Set
@@ -947,9 +1110,12 @@ void test() {
 
         if (vkCreateCommandPool(device, &poolInfo, NULL, &commandPool) != VK_SUCCESS) {
             printf( "Failed to create command pool\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
     }
+
+    // Initialize instances
+    updateInstances(device, physicalDevice);
 
     // Create command buffers
     {
@@ -962,68 +1128,21 @@ void test() {
         commandBuffers = malloc(sizeof(VkCommandBuffer) * swapChainImageCount);
         if (commandBuffers == NULL) {
             printf( "Failed to allocate command buffer handles\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers) != VK_SUCCESS) {
             printf( "Failed to allocate command buffers\n");
-            goto cleanup;
-        }
-    }
-
-    // Create instance buffer
-    {
-        VkDeviceSize bufferSize = sizeof(instances);
-
-        VkBufferCreateInfo bufferInfo = {0};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = bufferSize;
-        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vkCreateBuffer(device, &bufferInfo, NULL, &instanceBuffer) != VK_SUCCESS) {
-            printf("Failed to create instance buffer\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
-        VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(device, instanceBuffer, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo = {0};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-
-        VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-        allocInfo.memoryTypeIndex = findMemoryType(
-            physicalDevice, memRequirements.memoryTypeBits,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        );
-
-        if (vkAllocateMemory(device, &allocInfo, NULL, &instanceBufferMemory) != VK_SUCCESS) {
-            printf("Failed to allocate instance buffer memory\n");
-            goto cleanup;
-        }
-
-        vkBindBufferMemory(device, instanceBuffer, instanceBufferMemory, 0);
-
-        // Map memory and copy instance data
-        void* data;
-        vkMapMemory(device, instanceBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, instances, (size_t)bufferSize);
-        vkUnmapMemory(device, instanceBufferMemory);
-    }
-
-    // Record command buffers
-    {
         for (uint32_t i = 0; i < swapChainImageCount; i++) {
             VkCommandBufferBeginInfo beginInfo = {0};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
             if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
                 printf( "Failed to begin recording command buffer\n");
-                goto cleanup;
+                cleanup();exit(-1);
             }
 
             VkRenderPassBeginInfo renderPassInfo = {0};
@@ -1047,14 +1166,13 @@ void test() {
             VkDeviceSize offsets[] = { 0 };
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, buffers, offsets);
 
-            uint32_t instanceCount = sizeof(instances) / sizeof(instances[0]);
             vkCmdDraw(commandBuffers[i], 4, instanceCount, 0, 0);
 
             vkCmdEndRenderPass(commandBuffers[i]);
 
             if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
                 printf( "Failed to record command buffer\n");
-                goto cleanup;
+                cleanup();exit(-1);
             }
         }
     }
@@ -1073,7 +1191,7 @@ void test() {
             vkCreateFence(device, &fenceInfo, NULL, &inFlightFence) != VK_SUCCESS)
         {
             printf( "Failed to create synchronization objects\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
     }
 
@@ -1155,81 +1273,15 @@ void test() {
         {
             // Handle swapchain recreation here if needed
             printf( "Swapchain out of date or suboptimal during present. Consider recreating swapchain.\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
         else if (presentResult != VK_SUCCESS)
         {
             printf( "Failed to present swapchain image\n");
-            goto cleanup;
+            cleanup();exit(-1);
         }
 
         // Optionally, you can add vkQueueWaitIdle here for simplicity
         vkQueueWaitIdle(presentQueue);
-    }
-
-    cleanup:
-    {
-        if (device != VK_NULL_HANDLE)
-            vkDeviceWaitIdle(device);
-        if (inFlightFence != VK_NULL_HANDLE) 
-            vkDestroyFence(device, inFlightFence, NULL);
-        if (renderFinishedSemaphore != VK_NULL_HANDLE) 
-            vkDestroySemaphore(device, renderFinishedSemaphore, NULL);
-        if (imageAvailableSemaphore != VK_NULL_HANDLE)
-            vkDestroySemaphore(device, imageAvailableSemaphore, NULL);
-        if (commandBuffers != NULL) {
-            vkFreeCommandBuffers(device, commandPool, swapChainImageCount, commandBuffers);
-            free(commandBuffers);
-        }
-        if (commandPool != VK_NULL_HANDLE) 
-            vkDestroyCommandPool(device, commandPool, NULL);
-        if (swapChainFramebuffers != NULL) {
-            for (uint32_t i = 0; i < swapChainImageCount; i++) {
-                if (swapChainFramebuffers[i] != VK_NULL_HANDLE)
-                    vkDestroyFramebuffer(device, swapChainFramebuffers[i], NULL);
-            }
-            free(swapChainFramebuffers);
-        }
-        if (swapChainImageViews != NULL) {
-            for (uint32_t i = 0; i < swapChainImageCount; i++) {
-                if (swapChainImageViews[i] != VK_NULL_HANDLE)
-                    vkDestroyImageView(device, swapChainImageViews[i], NULL);
-            }
-            free(swapChainImageViews);
-        }
-        if (swapChain != VK_NULL_HANDLE)
-            vkDestroySwapchainKHR(device, swapChain, NULL);
-        if (graphicsPipelineHandle != VK_NULL_HANDLE) 
-            vkDestroyPipeline(device, graphicsPipelineHandle, NULL);
-        if (renderPass != VK_NULL_HANDLE)
-            vkDestroyRenderPass(device, renderPass, NULL);
-        if (pipelineLayout != VK_NULL_HANDLE)
-            vkDestroyPipelineLayout(device, pipelineLayout, NULL);
-        if (instanceBuffer != VK_NULL_HANDLE) 
-            vkDestroyBuffer(device, instanceBuffer, NULL);
-        if (instanceBufferMemory != VK_NULL_HANDLE) 
-            vkFreeMemory(device, instanceBufferMemory, NULL);
-        if (descriptorPool != VK_NULL_HANDLE)
-            vkDestroyDescriptorPool(device, descriptorPool, NULL);
-        if (descriptorSetLayout != VK_NULL_HANDLE)
-            vkDestroyDescriptorSetLayout(device, descriptorSetLayout, NULL);
-        if (uniformBuffer != VK_NULL_HANDLE)
-            vkDestroyBuffer(device, uniformBuffer, NULL);
-        if (uniformBufferMemory != VK_NULL_HANDLE)
-            vkFreeMemory(device, uniformBufferMemory, NULL);
-        if (device != VK_NULL_HANDLE)
-            vkDestroyDevice(device, NULL);
-        if (surface != VK_NULL_HANDLE)
-            vkDestroySurfaceKHR(instance, surface, NULL);
-        if (debugMessenger != VK_NULL_HANDLE) {
-            PFN_vkDestroyDebugUtilsMessengerEXT funcDestroyDebugUtilsMessengerEXT = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-            if (funcDestroyDebugUtilsMessengerEXT != NULL)
-                funcDestroyDebugUtilsMessengerEXT(instance, debugMessenger, NULL);
-        }
-        if (instance != VK_NULL_HANDLE)
-            vkDestroyInstance(instance, NULL);
-        if (window != NULL)
-            SDL_DestroyWindow(window);
-        SDL_Quit();
     }
 }
