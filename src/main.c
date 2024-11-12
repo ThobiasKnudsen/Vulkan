@@ -1,6 +1,6 @@
 // main.c
 
-#include "logos.h"
+#include "gui.h"
 #include <stdio.h>
 
 
