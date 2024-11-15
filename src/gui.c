@@ -1500,16 +1500,15 @@ typedef struct {
 // STATIC
     void*                       window_p;
     VkInstance                  instance;
-    VkDebugUtilsMessengerEXT    debug_messanger;
+    VkDebugUtilsMessengerEXT    debug_messenger;
     VkSurfaceKHR                surface;
     VkPhysicalDevice            physical_device;
     VkDevice                    device;
     VkQueueFamilyIndices        queue_family_indices;
     VkQueues                    queues;
 
-// DYNAMIC
-    VkRenderPass                render_pass;
     struct {
+        VkRenderPass            render_pass;
         VkSwapchainKHR          swap_chain;
         VkFormat                image_format;
         unsigned int            image_count;
@@ -1517,109 +1516,115 @@ typedef struct {
         VkImageView*            image_views_p;
         VkFramebuffer*          frame_buffers_p;
     }                           swap_chain;
+
+    struct {
+        VkCommandPool           pool;
+        VkCommandPoolCreateInfo pool_info;
+    }*                          commands_p;
+    size_t                      commands_p_size;
     
-
-
 } VK;
 
 void test() {
-    void* window = createWindow(800, 600, "Vulkan GUI");
-    VkInstance instance = createVulkanInstance(window);
-    VkDebugUtilsMessengerEXT debugMessenger = setupDebugMessenger(instance);
-    VkSurfaceKHR surface = createSurface(window, instance);
-    VkPhysicalDevice physicalDevice = getPhysicalDevice(instance);
-    VkQueueFamilyIndices queueFamilyIndices = getQueueFamilyIndices(surface, physicalDevice);
-    VkDevice device = getDevice(physicalDevice, queueFamilyIndices);
-    VkQueues queues = getQueues(device, queueFamilyIndices);
-    VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(device);
-    VkPipelineLayout pipelineLayout = createPipelineLayout(device, descriptorSetLayout);
-    VkFormat swapChainImageFormat = VK_FORMAT_B8G8R8A8_SRGB;
-    VkExtent2D swapChainExtent = {800, 600};
-    VkSwapchainKHR swapChain = createSwapChain(
-        device,
-        physicalDevice,
-        surface,
-        queueFamilyIndices,
-        swapChainExtent,
-        &swapChainImageFormat
+    VK vk;
+
+    vk.window_p = createWindow(800, 600, "Vulkan GUI");
+    vk.instance = createVulkanInstance(vk.window_p);
+    vk.debug_messenger = setupDebugMessenger(vk.instance);
+    vk.surface = createSurface(vk.window_p, vk.instance);
+    vk.physical_device = getPhysicalDevice(vk.instance);
+    vk.queue_family_indices = getQueueFamilyIndices(vk.surface, vk.physical_device);
+    vk.device = getDevice(vk.physical_device, vk.queue_family_indices);
+    vk.queues = getQueues(vk.device, vk.queue_family_indices);
+    vk.swap_chain.image_format = VK_FORMAT_B8G8R8A8_SRGB;
+    vk.swap_chain.extent = (VkExtent2D){800, 600};
+    vk.swap_chain.swap_chain = createSwapChain(
+        vk.device,
+        vk.physical_device,
+        vk.surface,
+        vk.queue_family_indices,
+        vk.swap_chain.extent,
+        &vk.swap_chain.image_format
     );
-    uint32_t swapChainImageCount = 0;
-    vkGetSwapchainImagesKHR(device, swapChain, &swapChainImageCount, NULL);
-    VkImageView* swapChainImageViews = createImageViews(
-        device,
-        swapChain,
-        swapChainImageFormat,
-        swapChainImageCount
+    vk.swap_chain.image_count = 0;
+    vkGetSwapchainImagesKHR(vk.device, vk.swap_chain.swap_chain, &vk.swap_chain.image_count, NULL);
+    vk.swap_chain.image_views_p = createImageViews(
+        vk.device,
+        vk.swap_chain.swap_chain,
+        vk.swap_chain.image_format,
+        vk.swap_chain.image_count
     );
-    VkRenderPass renderPass = createRenderPass(device, swapChainImageFormat);
-    VkFramebuffer* swapChainFramebuffers = createFramebuffers(
-        device,
-        renderPass,
-        swapChainImageViews,
-        swapChainImageCount,
-        swapChainExtent
+    vk.swap_chain.render_pass = createRenderPass(vk.device, vk.swap_chain.image_format);
+    vk.swap_chain.frame_buffers_p = createFramebuffers(
+        vk.device,
+        vk.swap_chain.render_pass,
+        vk.swap_chain.image_views_p,
+        vk.swap_chain.image_count,
+        vk.swap_chain.extent
     );
-    VkPipeline graphicsPipeline = createGraphicsPipeline(
-        device,
-        pipelineLayout,
-        renderPass,
-        swapChainExtent
-    );
+    VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(vk.device);
     VkDeviceMemory uniformBufferMemory;
-    VkBuffer uniformBuffer = createUniformBuffer(device, physicalDevice, &uniformBufferMemory);
-    VkDescriptorPool descriptorPool = createDescriptorPool(device);
+    VkBuffer uniformBuffer = createUniformBuffer(vk.device, vk.physical_device, &uniformBufferMemory);
+    VkDescriptorPool descriptorPool = createDescriptorPool(vk.device);
     VkDescriptorSet descriptorSet = createDescriptorSet(
-        device,
+        vk.device,
         descriptorPool,
         descriptorSetLayout,
         uniformBuffer
     );
-    VkCommandPool commandPool = createCommandPool(device, queueFamilyIndices.graphics);
+    VkCommandPool commandPool = createCommandPool(vk.device, vk.queue_family_indices.graphics);
     VkDeviceMemory instanceBufferMemory;
     VkBuffer instanceBuffer = createInstanceBuffer(
-        device,
-        physicalDevice,
+        vk.device,
+        vk.physical_device,
         (InstanceData*)all_instances,
         ALL_INSTANCE_COUNT,
         &instanceBufferMemory
     );
+    VkPipelineLayout pipelineLayout = createPipelineLayout(vk.device, descriptorSetLayout);
+    VkPipeline graphicsPipeline = createGraphicsPipeline(
+        vk.device,
+        pipelineLayout,
+        vk.swap_chain.render_pass,
+        vk.swap_chain.extent
+    );
     VkCommandBuffer* commandBuffers = createCommandBuffers(
-        device,
+        vk.device,
         commandPool,
         graphicsPipeline,
         pipelineLayout,
-        renderPass,
-        swapChainFramebuffers,
-        swapChainImageCount,
+        vk.swap_chain.render_pass,
+        vk.swap_chain.frame_buffers_p,
+        vk.swap_chain.image_count,
         instanceBuffer,
         descriptorSet,
-        swapChainExtent
+        vk.swap_chain.extent
     );
-    VkSemaphore imageAvailableSemaphore = createSemaphore(device);
-    VkSemaphore renderFinishedSemaphore = createSemaphore(device);
-    VkFence inFlightFence = createFence(device);
+    VkSemaphore imageAvailableSemaphore = createSemaphore(vk.device);
+    VkSemaphore renderFinishedSemaphore = createSemaphore(vk.device);
+    VkFence inFlightFence = createFence(vk.device);
     mainLoop(
-        device,
-        queues,
-        swapChain,
+        vk.device,
+        vk.queues,
+        vk.swap_chain.swap_chain,
         imageAvailableSemaphore, 
         renderFinishedSemaphore,
         inFlightFence,
         commandBuffers,
-        swapChainImageCount,
+        vk.swap_chain.image_count,
         descriptorSet,
-        swapChainExtent,
+        vk.swap_chain.extent,
         uniformBuffer,
         uniformBufferMemory
     );
     cleanup(
-        device,
-        instance,
-        surface,
-        debugMessenger,
+        vk.device,
+        vk.instance,
+        vk.surface,
+        vk.debug_messenger,
         graphicsPipeline,
         pipelineLayout,
-        renderPass,
+        vk.swap_chain.render_pass,
         descriptorSetLayout,
         descriptorPool,
         uniformBuffer,
@@ -1627,15 +1632,15 @@ void test() {
         instanceBuffer,
         instanceBufferMemory,
         descriptorSet,
-        swapChain,
-        swapChainImageViews,
-        swapChainImageCount,
-        swapChainFramebuffers,
+        vk.swap_chain.swap_chain,
+        vk.swap_chain.image_views_p,
+        vk.swap_chain.image_count,
+        vk.swap_chain.frame_buffers_p,
         commandPool,
         commandBuffers,
         imageAvailableSemaphore,
         renderFinishedSemaphore,
         inFlightFence,
-        window
+        vk.window_p
     );
 }
