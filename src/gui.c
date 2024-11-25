@@ -8,6 +8,7 @@
 #include <string.h>
 #include <math.h>
 #include <shaderc/shaderc.h>
+#include "vk_mem_alloc.h"
 #ifdef USE_SDL2
     #include <SDL2/SDL.h>
     #include <SDL2/SDL_vulkan.h>
@@ -20,6 +21,16 @@
 
 #define DEBUG
 #include "debug.h"
+
+// Memory allocation utility function
+void* alloc(void* ptr, size_t size) {
+    void* tmp = (ptr == NULL) ? malloc(size) : realloc(ptr, size);
+    if (!tmp) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+    return tmp;
+}
 
 // Define the all_instances array
 const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
@@ -210,7 +221,7 @@ unsigned int readShaderSource(const char* filename, char** buffer) {
     size_t fileSize = ftell(file);
     rewind(file);
 
-    *buffer = (char*)malloc(fileSize + 1);
+    *buffer = (char*)alloc(NULL, fileSize + 1);
     if (!*buffer) {
         printf("Failed to allocate memory for shader source '%s'\n", filename);
         fclose(file);
@@ -366,7 +377,7 @@ VkInstance createVulkanInstance(void* window) {
             exit(EXIT_FAILURE);
         }
 
-        const char** sdlExtensions = (const char**)malloc(sizeof(const char*) * sdlExtensionCount);
+        const char** sdlExtensions = (const char**)alloc(NULL, sizeof(const char*) * sdlExtensionCount);
         if (sdlExtensions == NULL) {
             printf("Failed to allocate memory for SDL Vulkan extensions\n");
             exit(EXIT_FAILURE);
@@ -380,7 +391,7 @@ VkInstance createVulkanInstance(void* window) {
 
         // Optional: Add VK_EXT_debug_utils_EXTENSION_NAME for debugging
         totalExtensionCount = sdlExtensionCount + 1;
-        allExtensions = (const char**)malloc(sizeof(const char*) * totalExtensionCount);
+        allExtensions = (const char**)alloc(NULL, sizeof(const char*) * totalExtensionCount);
         if (allExtensions == NULL) {
             printf("Failed to allocate memory for all Vulkan extensions\n");
             free(sdlExtensions);
@@ -491,7 +502,7 @@ VkPhysicalDevice getPhysicalDevice(VkInstance instance) {
         exit(EXIT_FAILURE);
     }
 
-    VkPhysicalDevice* devices = malloc(sizeof(VkPhysicalDevice) * device_count);
+    VkPhysicalDevice* devices = alloc(NULL, sizeof(VkPhysicalDevice) * device_count);
     if (devices == NULL) {
         printf( "Failed to allocate memory for physical devices\n");
         exit(EXIT_FAILURE);
@@ -526,7 +537,7 @@ VkQueueFamilyIndices getQueueFamilyIndices(VkSurfaceKHR surface, VkPhysicalDevic
         exit(EXIT_FAILURE);
     }
 
-    VkQueueFamilyProperties* queue_families = malloc(sizeof(VkQueueFamilyProperties) * queue_family_count);
+    VkQueueFamilyProperties* queue_families = alloc(NULL, sizeof(VkQueueFamilyProperties) * queue_family_count);
     if (queue_families == NULL) {
         printf("Failed to allocate memory for queue family properties\n");
         exit(EXIT_FAILURE);
@@ -618,7 +629,7 @@ VkDevice getDevice(VkPhysicalDevice physicalDevice, VkQueueFamilyIndices queue_f
     #undef ADD_UNIQUE_FAMILY
 
     // Allocate array for VkDeviceQueueCreateInfo
-    VkDeviceQueueCreateInfo* queue_create_infos = malloc(sizeof(VkDeviceQueueCreateInfo) * unique_count);
+    VkDeviceQueueCreateInfo* queue_create_infos = alloc(NULL, sizeof(VkDeviceQueueCreateInfo) * unique_count);
     if (!queue_create_infos) {
         printf("Failed to allocate memory for queue create infos.\n");
         exit(EXIT_FAILURE);
@@ -780,7 +791,7 @@ VkSwapchainKHR createSwapChain(
         printf("Failed to find surface formats\n");
         exit(EXIT_FAILURE);
     }
-    VkSurfaceFormatKHR* formats = malloc(sizeof(VkSurfaceFormatKHR) * formatCount);
+    VkSurfaceFormatKHR* formats = alloc(NULL, sizeof(VkSurfaceFormatKHR) * formatCount);
     if (formats == NULL) {
         printf("Failed to allocate memory for surface formats\n");
         exit(EXIT_FAILURE);
@@ -1038,7 +1049,7 @@ VkImageView* createImageViews(
     VkFormat imageFormat,
     uint32_t imageCount
 ) {
-    VkImage* swapChainImages = malloc(sizeof(VkImage) * imageCount);
+    VkImage* swapChainImages = alloc(NULL, sizeof(VkImage) * imageCount);
     if (swapChainImages == NULL) {
         printf("Failed to allocate memory for swapchain images\n");
         exit(EXIT_FAILURE);
@@ -1051,7 +1062,7 @@ VkImageView* createImageViews(
         exit(EXIT_FAILURE);
     }
 
-    VkImageView* swapChainImageViews = malloc(sizeof(VkImageView) * imageCount);
+    VkImageView* swapChainImageViews = alloc(NULL, sizeof(VkImageView) * imageCount);
     if (swapChainImageViews == NULL) {
         printf("Failed to allocate memory for image views\n");
         free(swapChainImages);
@@ -1099,7 +1110,7 @@ VkFramebuffer* createFramebuffers(
     VkExtent2D extent
 ) {
     
-    VkFramebuffer* framebuffers = malloc(sizeof(VkFramebuffer) * imageCount);
+    VkFramebuffer* framebuffers = alloc(NULL, sizeof(VkFramebuffer) * imageCount);
     if (framebuffers == NULL) {
         printf("Failed to allocate memory for framebuffers\n");
         exit(EXIT_FAILURE);
@@ -1299,7 +1310,7 @@ VkCommandBuffer* createCommandBuffers(
     VkDevice device,
     VkCommandPool commandPool,
     VkPipeline graphicsPipeline,
-    VkPipelineLayout pipelineLayout,
+    VkPipelineLayout graphicsPipelineLayout,
     VkRenderPass renderPass,
     VkFramebuffer* framebuffers,
     uint32_t imageCount,
@@ -1314,7 +1325,7 @@ VkCommandBuffer* createCommandBuffers(
         .commandBufferCount = imageCount
     };
 
-    VkCommandBuffer* commandBuffers = malloc(sizeof(VkCommandBuffer) * imageCount);
+    VkCommandBuffer* commandBuffers = alloc(NULL, sizeof(VkCommandBuffer) * imageCount);
     if (commandBuffers == NULL) {
         printf("Failed to allocate memory for command buffers\n");
         exit(EXIT_FAILURE);
@@ -1347,7 +1358,7 @@ VkCommandBuffer* createCommandBuffers(
             
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &descriptorSet, 0, NULL);
         vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, (VkBuffer[]){instanceBuffer}, (VkDeviceSize[]){0});
         vkCmdDraw(commandBuffers[i], 4, INDICES_COUNT, 0, 0); // Adjust vertex count as needed
         vkCmdEndRenderPass(commandBuffers[i]);
@@ -1390,7 +1401,6 @@ VkFence createFence(VkDevice device) {
 }
 
 // gui.c
-
 void mainLoop(
     VkDevice device,
     VkQueues queues,
@@ -1404,8 +1414,7 @@ void mainLoop(
     VkExtent2D swapChainExtent,
     VkBuffer uniformBuffer,
     VkDeviceMemory uniformBufferMemory // Added parameter
-) 
-{
+){
     #if defined(USE_SDL2)
         int running = 1;
         SDL_Event event;
@@ -1520,13 +1529,60 @@ typedef struct {
     struct {
         VkCommandPool           pool;
         VkCommandPoolCreateInfo pool_info;
-    }*                          commands_p;
-    size_t                      commands_p_size;
+        VkCommandBuffer*        buffers_p;
+        size_t                  buffers_p_size;
+    }                           command;
+
+    struct {
+        VkDescriptorPool        pool;
+        //VkDescriptorPoolCreateInfo        info;
+
+        VkDescriptorSet*        sets_p;
+        VkDescriptorSetLayout*  set_layouts_p;
+        size_t                  sets_size;
+    }                           descriptor;
+
+    VmaAllocator allocator;
     
 } VK;
 
-void test() {
+VK VK_Create() {
     VK vk;
+    memset(&vk, 0, sizeof(VK));
+    vk.window_p                     = NULL;
+    vk.swap_chain.image_views_p     = NULL;
+    vk.swap_chain.frame_buffers_p   = NULL;
+    vk.command.buffers_p            = NULL;
+    vk.descriptor.sets_p            = NULL;
+    vk.descriptor.set_layouts_p     = NULL;
+    return vk;
+}
+
+void initializeVmaAllocator(VK* vk) {
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = vk->physical_device;
+    allocatorInfo.device = vk->device;
+    allocatorInfo.instance = vk->instance;
+
+    VkResult result = vmaCreateAllocator(&allocatorInfo, &vk->allocator);
+    if (result != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create VMA allocator\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+// Function to create a buffer with VMA
+VkBuffer createBufferWithVma(VK* vk, VkBufferCreateInfo* bufferInfo, VmaAllocationCreateInfo* allocInfo, VmaAllocation* allocation) {
+    VkBuffer buffer;
+    if (vmaCreateBuffer(vk->allocator, bufferInfo, allocInfo, &buffer, allocation, NULL) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create buffer with VMA\n");
+        exit(EXIT_FAILURE);
+    }
+    return buffer;
+}
+
+void test() {
+    VK vk = VK_Create();
 
     vk.window_p = createWindow(800, 600, "Vulkan GUI");
     vk.instance = createVulkanInstance(vk.window_p);
@@ -1535,6 +1591,7 @@ void test() {
     vk.physical_device = getPhysicalDevice(vk.instance);
     vk.queue_family_indices = getQueueFamilyIndices(vk.surface, vk.physical_device);
     vk.device = getDevice(vk.physical_device, vk.queue_family_indices);
+    initializeVmaAllocator(&vk);
     vk.queues = getQueues(vk.device, vk.queue_family_indices);
     vk.swap_chain.image_format = VK_FORMAT_B8G8R8A8_SRGB;
     vk.swap_chain.extent = (VkExtent2D){800, 600};
@@ -1562,42 +1619,63 @@ void test() {
         vk.swap_chain.image_count,
         vk.swap_chain.extent
     );
-    VkDescriptorSetLayout descriptorSetLayout = createDescriptorSetLayout(vk.device);
-    VkDeviceMemory uniformBufferMemory;
-    VkBuffer uniformBuffer = createUniformBuffer(vk.device, vk.physical_device, &uniformBufferMemory);
-    VkDescriptorPool descriptorPool = createDescriptorPool(vk.device);
-    VkDescriptorSet descriptorSet = createDescriptorSet(
+
+    // Create Uniform Buffer with VMA
+    VkBufferCreateInfo uniformBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    uniformBufferInfo.size = sizeof(UniformBufferObject);
+    uniformBufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    uniformBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo uniformAllocInfo = {};
+    uniformAllocInfo.usage = VMA_MEMORY_USAGE_AUTO; // Let VMA decide the memory type
+
+    VmaAllocation uniformBufferAllocation;
+    VkBuffer uniformBuffer = createBufferWithVma(&vk, &uniformBufferInfo, &uniformAllocInfo, &uniformBufferAllocation);
+
+    // Create Descriptor Pool and Sets as before
+    vk.descriptor.pool = createDescriptorPool(vk.device);
+    vk.descriptor.sets_size++;
+    vk.descriptor.sets_p = realloc(vk.descriptor.sets_p, sizeof(VkDescriptorSet) * vk.descriptor.sets_size);
+    vk.descriptor.set_layouts_p = realloc(vk.descriptor.set_layouts_p, sizeof(VkDescriptorSetLayout) * vk.descriptor.sets_size);
+    vk.descriptor.set_layouts_p[vk.descriptor.sets_size - 1] = createDescriptorSetLayout(vk.device);
+    vk.descriptor.sets_p[vk.descriptor.sets_size - 1] = createDescriptorSet(
         vk.device,
-        descriptorPool,
-        descriptorSetLayout,
+        vk.descriptor.pool,
+        vk.descriptor.set_layouts_p[vk.descriptor.sets_size - 1],
         uniformBuffer
     );
-    VkCommandPool commandPool = createCommandPool(vk.device, vk.queue_family_indices.graphics);
-    VkDeviceMemory instanceBufferMemory;
-    VkBuffer instanceBuffer = createInstanceBuffer(
-        vk.device,
-        vk.physical_device,
-        (InstanceData*)all_instances,
-        ALL_INSTANCE_COUNT,
-        &instanceBufferMemory
-    );
-    VkPipelineLayout pipelineLayout = createPipelineLayout(vk.device, descriptorSetLayout);
+
+    vk.command.pool = createCommandPool(vk.device, vk.queue_family_indices.graphics);
+
+    // Create Instance Buffer with VMA
+    VkBufferCreateInfo instanceBufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    instanceBufferInfo.size = sizeof(InstanceData) * ALL_INSTANCE_COUNT;
+    instanceBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    instanceBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo instanceAllocInfo = {};
+    instanceAllocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+    VmaAllocation instanceBufferAllocation;
+    VkBuffer instanceBuffer = createBufferWithVma(&vk, &instanceBufferInfo, &instanceAllocInfo, &instanceBufferAllocation);
+
+    VkPipelineLayout graphicsPipelineLayout = createPipelineLayout(vk.device, vk.descriptor.set_layouts_p[vk.descriptor.sets_size - 1]);
     VkPipeline graphicsPipeline = createGraphicsPipeline(
         vk.device,
-        pipelineLayout,
+        graphicsPipelineLayout,
         vk.swap_chain.render_pass,
         vk.swap_chain.extent
     );
     VkCommandBuffer* commandBuffers = createCommandBuffers(
         vk.device,
-        commandPool,
+        vk.command.pool,
         graphicsPipeline,
-        pipelineLayout,
+        graphicsPipelineLayout,
         vk.swap_chain.render_pass,
         vk.swap_chain.frame_buffers_p,
         vk.swap_chain.image_count,
         instanceBuffer,
-        descriptorSet,
+        vk.descriptor.sets_p[vk.descriptor.sets_size - 1],
         vk.swap_chain.extent
     );
     VkSemaphore imageAvailableSemaphore = createSemaphore(vk.device);
@@ -1612,7 +1690,7 @@ void test() {
         inFlightFence,
         commandBuffers,
         vk.swap_chain.image_count,
-        descriptorSet,
+        vk.descriptor.sets_p[vk.descriptor.sets_size-1],
         vk.swap_chain.extent,
         uniformBuffer,
         uniformBufferMemory
@@ -1623,20 +1701,20 @@ void test() {
         vk.surface,
         vk.debug_messenger,
         graphicsPipeline,
-        pipelineLayout,
+        graphicsPipelineLayout,
         vk.swap_chain.render_pass,
-        descriptorSetLayout,
-        descriptorPool,
+        vk.descriptor.set_layouts_p[vk.descriptor.sets_size-1],
+        vk.descriptor.pool,
         uniformBuffer,
         uniformBufferMemory,
         instanceBuffer,
         instanceBufferMemory,
-        descriptorSet,
+        vk.descriptor.sets_p[vk.descriptor.sets_size-1],
         vk.swap_chain.swap_chain,
         vk.swap_chain.image_views_p,
         vk.swap_chain.image_count,
         vk.swap_chain.frame_buffers_p,
-        commandPool,
+        vk.command.pool,
         commandBuffers,
         imageAvailableSemaphore,
         renderFinishedSemaphore,

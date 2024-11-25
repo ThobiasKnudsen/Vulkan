@@ -1,4 +1,3 @@
-
 CC := gcc
 CXX := g++
 
@@ -6,12 +5,12 @@ CFLAGS_COMMON := -Wall
 CFLAGS_C := $(CFLAGS_COMMON)
 CXXFLAGS_C := $(CFLAGS_COMMON) -std=c++17
 
-INCLUDE_DIRS := -Iinclude
+INCLUDE_DIRS := -Iinclude -Ideps/VulkanMemoryAllocator/include
 LIB_DIRS := -Llib
 LIBS := -lvulkan -lSDL2 -lshaderc 
 
 SRC_FILES := $(shell find src -name '*.c' -o -name '*.cpp')
-OBJ_FILES := $(patsubst %.c, obj/%.o, $(patsubst %.cpp, obj/%.o, $(notdir $(SRC_FILES))))
+OBJ_FILES := $(patsubst %.c,obj/%.o,$(patsubst %.cpp,obj/%.o,$(notdir $(SRC_FILES))))
 DEP_FILES := $(OBJ_FILES:.o=.d)
 
 .PHONY: all
