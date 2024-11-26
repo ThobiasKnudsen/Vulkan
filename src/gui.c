@@ -26,7 +26,7 @@
 void* alloc(void* ptr, size_t size) {
     void* tmp = (ptr == NULL) ? malloc(size) : realloc(ptr, size);
     if (!tmp) {
-        fprintf(stderr, "Memory allocation failed\n");
+        printf("Memory allocation failed\n");
         exit(EXIT_FAILURE);
     }
     return tmp;
@@ -535,7 +535,7 @@ VkPipeline createGraphicsPipeline(
 }
 
 // Create Uniform Buffer
-VkBuffer createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceMemory* bufferMemory) {
+VkBuffer createUniformBuffer_2(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceMemory* bufferMemory) {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
     // Create the buffer
@@ -637,7 +637,7 @@ InstanceBuffer createInstanceBuffer(
 
     // Create buffer and allocate memory
     if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &instanceBuffer.buffer, &instanceBuffer.allocation, NULL) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create instance buffer with VMA!\n");
+        printf("Failed to create instance buffer with VMA!\n");
         exit(EXIT_FAILURE);
     }
 
@@ -700,7 +700,7 @@ VkBuffer createInstanceBuffer_2(
 }
 
 // Create Command Buffers
-VkCommandBuffer* createCommandBuffers(
+VkCommandBuffer* createCommandBuffersForSwapchain(
     VkDevice device,
     VkCommandPool commandPool,
     VkPipeline graphicsPipeline,
@@ -831,7 +831,7 @@ void mainLoop(
             void* data;
             VkResult mapResult = vmaMapMemory(allocator, uniformBufferAllocation, &data);
             if (mapResult != VK_SUCCESS) {
-                fprintf(stderr, "Failed to map uniform buffer memory: %d\n", mapResult);
+                printf("Failed to map uniform buffer memory: %d\n", mapResult);
                 running = 0;
                 continue;
             }
@@ -852,12 +852,12 @@ void mainLoop(
             );
 
             if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR || acquireResult == VK_SUBOPTIMAL_KHR) {
-                fprintf(stderr, "Swapchain out of date or suboptimal. Consider recreating swapchain.\n");
+                printf("Swapchain out of date or suboptimal. Consider recreating swapchain.\n");
                 running = 0;
                 continue;
             }
             else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
-                fprintf(stderr, "Failed to acquire swapchain image: %d\n", acquireResult);
+                printf("Failed to acquire swapchain image: %d\n", acquireResult);
                 running = 0;
                 continue;
             }
@@ -876,7 +876,7 @@ void mainLoop(
 
             VkResult submitResult = vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence);
             if (submitResult != VK_SUCCESS) {
-                fprintf(stderr, "Failed to submit draw command buffer: %d\n", submitResult);
+                printf("Failed to submit draw command buffer: %d\n", submitResult);
                 running = 0;
                 continue;
             }
@@ -893,12 +893,12 @@ void mainLoop(
 
             VkResult presentResult = vkQueuePresentKHR(presentQueue, &presentInfo);
             if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
-                fprintf(stderr, "Swapchain out of date or suboptimal during present. Consider recreating swapchain.\n");
+                printf("Swapchain out of date or suboptimal during present. Consider recreating swapchain.\n");
                 running = 0;
                 continue;
             }
             else if (presentResult != VK_SUCCESS) {
-                fprintf(stderr, "Failed to present swapchain image: %d\n", presentResult);
+                printf("Failed to present swapchain image: %d\n", presentResult);
                 running = 0;
                 continue;
             }
@@ -907,7 +907,7 @@ void mainLoop(
             vkQueueWaitIdle(presentQueue);
         }
     #else
-        fprintf(stderr, "SDL has to be included and it has to be included\n");
+        printf("SDL has to be included and it has to be included\n");
         exit(EXIT_FAILURE);
     #endif
 }
@@ -951,7 +951,7 @@ typedef struct {
     }                           descriptor;
 
     VmaAllocator allocator;
-    
+
 } VK;
 
 VK VK_Create(unsigned int width, unsigned int height, const char* title) {
@@ -981,14 +981,14 @@ VK VK_Create(unsigned int width, unsigned int height, const char* title) {
             }
         #elif defined(USE_GLFW)
             if (!glfwInit()) {
-                fprintf(stderr, "ERROR: Failed to initialize GLFW\n");
+                printf("ERROR: Failed to initialize GLFW\n");
                 exit(EXIT_FAILURE);
             }
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
             vk.window_p = glfwCreateWindow(width, height, title, NULL, NULL);
             if (!vk.window_p) {
-                fprintf(stderr, "ERROR: Failed to create GLFW window\n");
+                printf("ERROR: Failed to create GLFW window\n");
                 glfwTerminate();
                 exit(EXIT_FAILURE);
             }
@@ -1285,7 +1285,7 @@ VK VK_Create(unsigned int width, unsigned int height, const char* title) {
 
         VkResult result = vmaCreateAllocator(&allocatorInfo, &vk.allocator);
         if (result != VK_SUCCESS) {
-            fprintf(stderr, "Failed to create VMA allocator\n");
+            printf("Failed to create VMA allocator\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -1480,11 +1480,11 @@ VK VK_Create(unsigned int width, unsigned int height, const char* title) {
                 .pColorAttachments              = (VkAttachmentReference[]) 
                 {{
                     .attachment                 = 0,
-                    .layout                     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    .layout                     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 }}
             }},
             .dependencyCount                    = 1,
-            .pDependencies                      = (VkSubpassDependency[]){{
+            .pDependencies                      = (VkSubpassDependency[]) {{
                 .srcSubpass                     = VK_SUBPASS_EXTERNAL,
                 .dstSubpass                     = 0,
                 .srcStageMask                   = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1561,76 +1561,72 @@ VK VK_Create(unsigned int width, unsigned int height, const char* title) {
 VkBuffer createBufferWithVma(VK* vk, VkBufferCreateInfo* bufferInfo, VmaAllocationCreateInfo* allocInfo, VmaAllocation* allocation) {
     VkBuffer buffer;
     if (vmaCreateBuffer(vk->allocator, bufferInfo, allocInfo, &buffer, allocation, NULL) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create buffer with VMA\n");
+        printf("Failed to create buffer with VMA\n");
         exit(EXIT_FAILURE);
     }
     return buffer;
 }
 
-void test() {
-    VK vk = VK_Create(800, 600, "Vulkan GUI");
+size_t createDescriptorSetAndLayout(VK* vk, VkBuffer uniform_buffer) {
+    vk->descriptor.sets_size++;
+    debug(vk->descriptor.sets_p = alloc(vk->descriptor.sets_p, sizeof(VkDescriptorSet) * vk->descriptor.sets_size));
+    debug(vk->descriptor.set_layouts_p = alloc(vk->descriptor.set_layouts_p, sizeof(VkDescriptorSetLayout) * vk->descriptor.sets_size));
+    debug(vk->descriptor.set_layouts_p[vk->descriptor.sets_size - 1] = createDescriptorSetLayout(vk->device));
+    debug(vk->descriptor.sets_p[vk->descriptor.sets_size - 1] = createDescriptorSet(
+        vk->device,
+        vk->descriptor.pool,
+        vk->descriptor.set_layouts_p[vk->descriptor.sets_size - 1],
+        uniform_buffer
+    ));
 
+    return vk->descriptor.sets_size-1;
+}
+
+typedef struct {
+    VkBuffer buffer;
+    VmaAllocation allocation;
+} UniformBuffer;
+
+UniformBuffer createUniformBuffer(
+    VK* vk,
+    size_t buffer_size
+) {
+    UniformBuffer uniform_buffer = {0};
 
     // Create Uniform Buffer with VMA
-    VkBufferCreateInfo uniformBufferInfo = { 
+    VkBufferCreateInfo uniform_buffer_info = { 
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = sizeof(UniformBufferObject),
+        .size = buffer_size,
         .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
-    VmaAllocationCreateInfo uniformAllocInfo = {
+    VmaAllocationCreateInfo uniform_alloc_info = {
         .usage = VMA_MEMORY_USAGE_CPU_TO_GPU
     };
-    VmaAllocation uniformBufferAllocation;
-    debug(VkBuffer uniformBuffer = createBufferWithVma(&vk, &uniformBufferInfo, &uniformAllocInfo, &uniformBufferAllocation));
-
-
-    vk.descriptor.sets_size++;
-    debug(vk.descriptor.sets_p = alloc(vk.descriptor.sets_p, sizeof(VkDescriptorSet) * vk.descriptor.sets_size));
-    debug(vk.descriptor.set_layouts_p = alloc(vk.descriptor.set_layouts_p, sizeof(VkDescriptorSetLayout) * vk.descriptor.sets_size));
-    debug(vk.descriptor.set_layouts_p[vk.descriptor.sets_size - 1] = createDescriptorSetLayout(vk.device));
-    debug(vk.descriptor.sets_p[vk.descriptor.sets_size - 1] = createDescriptorSet(
-        vk.device,
-        vk.descriptor.pool,
-        vk.descriptor.set_layouts_p[vk.descriptor.sets_size - 1],
-        uniformBuffer
-    ));
-
-
-    InstanceBuffer instance_buffer = createInstanceBuffer(vk.allocator, all_instances, sizeof(InstanceData) * ALL_INSTANCE_COUNT);
-
-    // Create Instance Buffer with VMA
-    VkBufferCreateInfo instanceBufferInfo = { 
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = sizeof(InstanceData) * ALL_INSTANCE_COUNT,
-        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
-    };
-    VmaAllocationCreateInfo instanceAllocInfo = {
-        .usage = VMA_MEMORY_USAGE_CPU_TO_GPU
-    };
-    VmaAllocation instanceBufferAllocation;
-    debug(VkBuffer instanceBuffer = createBufferWithVma(&vk, &instanceBufferInfo, &instanceAllocInfo, &instanceBufferAllocation));
-
-
-    void* instanceData;
-    VkResult mapResult = vmaMapMemory(vk.allocator, instanceBufferAllocation, &instanceData);
-    if (mapResult != VK_SUCCESS) {
-        fprintf(stderr, "Failed to map instance buffer memory: %d\n", mapResult);
+    //debug(uniform_buffer.buffer = createBufferWithVma(&vk, &uniform_buffer_info, &uniform_alloc_info, &uniform_buffer.allocation));
+    if (vmaCreateBuffer(vk->allocator, &uniform_buffer_info, &uniform_alloc_info, &uniform_buffer.buffer, &uniform_buffer.allocation, NULL) != VK_SUCCESS) {
+        printf("Failed to create buffer with VMA\n");
         exit(EXIT_FAILURE);
     }
-    memcpy(instanceData, all_instances, sizeof(InstanceData) * ALL_INSTANCE_COUNT);
-    vmaUnmapMemory(vk.allocator, instanceBufferAllocation);
 
+    return uniform_buffer;
+}
 
-    debug(VkPipelineLayout graphicsPipelineLayout = createPipelineLayout(vk.device, vk.descriptor.set_layouts_p[vk.descriptor.sets_size - 1]));
+void test() {
+    VK vk = VK_Create(800, 600, "Vulkan GUI");
+
+    UniformBuffer uniform_buffer = createUniformBuffer(&vk, sizeof(UniformBufferObject));
+    size_t descriptor_index = createDescriptorSetAndLayout(&vk, uniform_buffer.buffer);
+    InstanceBuffer instance_buffer = createInstanceBuffer(vk.allocator, all_instances, sizeof(InstanceData) * ALL_INSTANCE_COUNT);
+
+    debug(VkPipelineLayout graphicsPipelineLayout = createPipelineLayout(vk.device, vk.descriptor.set_layouts_p[descriptor_index]));
     debug(VkPipeline graphicsPipeline = createGraphicsPipeline(
         vk.device,
         graphicsPipelineLayout,
         vk.swap_chain.render_pass,
         vk.swap_chain.extent
     ));
-    debug(VkCommandBuffer* commandBuffers = createCommandBuffers(
+    debug(VkCommandBuffer* commandBuffers = createCommandBuffersForSwapchain(
         vk.device,
         vk.command.pool,
         graphicsPipeline,
@@ -1639,7 +1635,7 @@ void test() {
         vk.swap_chain.frame_buffers_p,
         vk.swap_chain.image_count,
         instance_buffer.buffer,
-        vk.descriptor.sets_p[vk.descriptor.sets_size - 1],
+        vk.descriptor.sets_p[descriptor_index],
         vk.swap_chain.extent
     ));
     debug(VkSemaphore imageAvailableSemaphore = createSemaphore(vk.device));
@@ -1656,10 +1652,10 @@ void test() {
         inFlightFence,
         commandBuffers,
         vk.swap_chain.image_count,
-        vk.descriptor.sets_p[vk.descriptor.sets_size-1],
+        vk.descriptor.sets_p[descriptor_index],
         vk.swap_chain.extent,
-        uniformBuffer,
-        uniformBufferAllocation
+        uniform_buffer.buffer,
+        uniform_buffer.allocation
     ));
     debug(cleanup(
         vk.allocator,
@@ -1670,13 +1666,13 @@ void test() {
         graphicsPipeline,
         graphicsPipelineLayout,
         vk.swap_chain.render_pass,
-        vk.descriptor.set_layouts_p[vk.descriptor.sets_size-1],
+        vk.descriptor.set_layouts_p[descriptor_index],
         vk.descriptor.pool,
-        uniformBuffer,
-        uniformBufferAllocation,
+        uniform_buffer.buffer,
+        uniform_buffer.allocation,
         instance_buffer.buffer,
         instance_buffer.allocation,
-        vk.descriptor.sets_p[vk.descriptor.sets_size-1],
+        vk.descriptor.sets_p[descriptor_index],
         vk.swap_chain.swap_chain,
         vk.swap_chain.image_views_p,
         vk.swap_chain.image_count,

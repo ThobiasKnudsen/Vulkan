@@ -77,12 +77,12 @@ VkRenderPass                createRenderPass(VkDevice device, VkFormat imageForm
 VkPipeline                  createGraphicsPipeline(VkDevice device, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, VkExtent2D swapChainExtent);
 VkImageView*                createImageViews(VkDevice device, VkSwapchainKHR swapChain, VkFormat imageFormat, uint32_t imageCount);
 VkFramebuffer*              createFramebuffers(VkDevice device, VkRenderPass renderPass, VkImageView* imageViews, uint32_t imageCount, VkExtent2D extent);
-VkBuffer                    createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceMemory* bufferMemory);
+VkBuffer                    createUniformBuffer_2(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceMemory* bufferMemory);
 VkDescriptorPool            createDescriptorPool(VkDevice device);
 VkDescriptorSet             createDescriptorSet(VkDevice device, VkDescriptorPool pool, VkDescriptorSetLayout layout, VkBuffer uniformBuffer);
 VkCommandPool               createCommandPool(VkDevice device, uint32_t graphicsFamily);
-VkBuffer                    createInstanceBuffer(VkDevice device, VkPhysicalDevice physicalDevice, InstanceData* instances, size_t instanceCount, VkDeviceMemory* bufferMemory);
-VkCommandBuffer*            createCommandBuffers(VkDevice device, VkCommandPool commandPool, VkPipeline graphicsPipeline, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, VkFramebuffer* framebuffers, uint32_t imageCount, VkBuffer instanceBuffer, VkDescriptorSet descriptorSet, VkExtent2D swapChainExtent);
+VkBuffer                    createInstanceBuffer_2(VkDevice device, VkPhysicalDevice physicalDevice, InstanceData* instances, size_t instanceCount, VkDeviceMemory* bufferMemory);
+VkCommandBuffer*            createCommandBuffersForSwapchain(VkDevice device, VkCommandPool commandPool, VkPipeline graphicsPipeline, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, VkFramebuffer* framebuffers, uint32_t imageCount, VkBuffer instanceBuffer, VkDescriptorSet descriptorSet, VkExtent2D swapChainExtent);
 VkSemaphore                 createSemaphore(VkDevice device);
 VkFence                     createFence(VkDevice device);
 void                        mainLoop(VmaAllocator allocator,VkDevice device,VkQueue graphicsQueue,VkQueue presentQueue,VkSwapchainKHR swapChain,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence,VkCommandBuffer* commandBuffers,uint32_t imageCount,VkDescriptorSet descriptorSet,VkExtent2D swapChainExtent,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation);
