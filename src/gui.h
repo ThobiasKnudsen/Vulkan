@@ -4,6 +4,7 @@
 
 #include <vulkan/vulkan.h>
 #include <shaderc/shaderc.h> // Added to define shaderc_shader_kind
+#include <vk_mem_alloc.h>
 
 // Constants
 #define ALL_INSTANCE_COUNT 5
@@ -64,7 +65,7 @@ void                        copyBufferToImage( VkDevice device, VkCommandPool co
 void                        transitionImageLayout( VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout );
 void                        destroyVulkanImage( VkDevice device, VulkanImage* vulkanImage );
 
-void                        cleanup( VkDevice device, VkInstance instance, VkSurfaceKHR surface, VkDebugUtilsMessengerEXT debugMessenger, VkPipeline graphicsPipeline, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, VkDescriptorSetLayout descriptorSetLayout, VkDescriptorPool descriptorPool, VkBuffer uniformBuffer, VkDeviceMemory uniformBufferMemory, VkBuffer instanceBuffer, VkDeviceMemory instanceBufferMemory, VkDescriptorSet descriptorSet, VkSwapchainKHR swapChain, VkImageView* swapChainImageViews, uint32_t swapChainImageCount, VkFramebuffer* swapChainFramebuffers, VkCommandPool commandPool, VkCommandBuffer* commandBuffers, VkSemaphore imageAvailableSemaphore, VkSemaphore renderFinishedSemaphore, VkFence inFlightFence, void* window );
+void                        cleanup(VmaAllocator allocator,VkDevice device,VkInstance instance,VkSurfaceKHR surface,VkDebugUtilsMessengerEXT debugMessenger,VkPipeline graphicsPipeline,VkPipelineLayout pipelineLayout,VkRenderPass renderPass,VkDescriptorSetLayout descriptorSetLayout,VkDescriptorPool descriptorPool,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation,VkBuffer instanceBuffer,VmaAllocation instanceBufferAllocation,VkDescriptorSet descriptorSet,VkSwapchainKHR swapChain,VkImageView* swapChainImageViews,uint32_t swapChainImageCount,VkFramebuffer* swapChainFramebuffers,VkCommandPool commandPool,VkCommandBuffer* commandBuffers,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence,void* window);
 unsigned int                readShaderSource(const char* filename, char** buffer);
 VkShaderModule              createShaderModule(const char* filename, shaderc_shader_kind kind, VkDevice device);
 VkInstance                  createVulkanInstance(void* window);
@@ -89,7 +90,7 @@ VkBuffer                    createInstanceBuffer(VkDevice device, VkPhysicalDevi
 VkCommandBuffer*            createCommandBuffers(VkDevice device, VkCommandPool commandPool, VkPipeline graphicsPipeline, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, VkFramebuffer* framebuffers, uint32_t imageCount, VkBuffer instanceBuffer, VkDescriptorSet descriptorSet, VkExtent2D swapChainExtent);
 VkSemaphore                 createSemaphore(VkDevice device);
 VkFence                     createFence(VkDevice device);
-void                        mainLoop(VkDevice device, VkQueues queues, VkSwapchainKHR swapChain, VkSemaphore imageAvailableSemaphore, VkSemaphore renderFinishedSemaphore, VkFence inFlightFence, VkCommandBuffer* commandBuffers, uint32_t imageCount, VkDescriptorSet descriptorSet, VkExtent2D swapChainExtent, VkBuffer uniformBuffer, VkDeviceMemory uniformBufferMemory);
+void                        mainLoop(VmaAllocator allocator,VkDevice device,VkQueue graphicsQueue,VkQueue presentQueue,VkSwapchainKHR swapChain,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence,VkCommandBuffer* commandBuffers,uint32_t imageCount,VkDescriptorSet descriptorSet,VkExtent2D swapChainExtent,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation);
 void                        test();
 
 #endif // VULKAN_GUI_H
