@@ -6,11 +6,6 @@
 #include <shaderc/shaderc.h> // Added to define shaderc_shader_kind
 #include <vk_mem_alloc.h>
 
-// Constants
-#define ALL_INSTANCE_COUNT 5
-#define INDICES_COUNT 3
-
-//typedef struct VK VK;
 
 // Structures
 typedef struct {

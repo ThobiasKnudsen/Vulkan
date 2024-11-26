@@ -33,6 +33,7 @@ void* alloc(void* ptr, size_t size) {
 }
 
 // Define the all_instances array
+#define ALL_INSTANCE_COUNT 5
 const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
     // Instance 0
     {
@@ -336,7 +337,6 @@ uint32_t findMemoryType(
     exit(EXIT_FAILURE);
 }
 
-
 // Create Descriptor Set Layout
 VkDescriptorSetLayout createDescriptorSetLayout(VkDevice device) {
     VkDescriptorSetLayoutCreateInfo layout_info = {
@@ -571,7 +571,6 @@ VkBuffer createUniformBuffer(VkDevice device, VkPhysicalDevice physicalDevice, V
     return uniformBuffer;
 }
 
-
 // Create Descriptor Set
 VkDescriptorSet createDescriptorSet(
     VkDevice device,
@@ -611,9 +610,49 @@ VkDescriptorSet createDescriptorSet(
     return descriptorSet;
 }
 
+typedef struct {
+    VkBuffer buffer;
+    VmaAllocation allocation;
+} InstanceBuffer;
+
+// Create Instance Buffer using VMA
+InstanceBuffer createInstanceBuffer(
+    VmaAllocator allocator,
+    InstanceData* instances,
+    size_t instanceCount
+) {
+    InstanceBuffer instanceBuffer = {0};
+
+    VkBufferCreateInfo bufferInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = instanceCount * sizeof(InstanceData),
+        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, //| VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+
+    VmaAllocationCreateInfo allocInfo = {
+        .usage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+        //.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT
+    };
+
+    // Create buffer and allocate memory
+    if (vmaCreateBuffer(allocator, &bufferInfo, &allocInfo, &instanceBuffer.buffer, &instanceBuffer.allocation, NULL) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create instance buffer with VMA!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy instance data to the buffer
+    void* data;
+    vmaMapMemory(allocator, instanceBuffer.allocation, &data);
+    memcpy(data, instances, bufferInfo.size);
+    vmaUnmapMemory(allocator, instanceBuffer.allocation);
+
+    return instanceBuffer;
+}
+
 
 // Create Instance Buffer
-VkBuffer createInstanceBuffer(
+VkBuffer createInstanceBuffer_2(
     VkDevice device,
     VkPhysicalDevice physicalDevice,
     InstanceData* instances,
@@ -1531,6 +1570,7 @@ VkBuffer createBufferWithVma(VK* vk, VkBufferCreateInfo* bufferInfo, VmaAllocati
 void test() {
     VK vk = VK_Create(800, 600, "Vulkan GUI");
 
+
     // Create Uniform Buffer with VMA
     VkBufferCreateInfo uniformBufferInfo = { 
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -1544,6 +1584,7 @@ void test() {
     VmaAllocation uniformBufferAllocation;
     debug(VkBuffer uniformBuffer = createBufferWithVma(&vk, &uniformBufferInfo, &uniformAllocInfo, &uniformBufferAllocation));
 
+
     vk.descriptor.sets_size++;
     debug(vk.descriptor.sets_p = alloc(vk.descriptor.sets_p, sizeof(VkDescriptorSet) * vk.descriptor.sets_size));
     debug(vk.descriptor.set_layouts_p = alloc(vk.descriptor.set_layouts_p, sizeof(VkDescriptorSetLayout) * vk.descriptor.sets_size));
@@ -1554,6 +1595,9 @@ void test() {
         vk.descriptor.set_layouts_p[vk.descriptor.sets_size - 1],
         uniformBuffer
     ));
+
+
+    InstanceBuffer instance_buffer = createInstanceBuffer(vk.allocator, all_instances, sizeof(InstanceData) * ALL_INSTANCE_COUNT);
 
     // Create Instance Buffer with VMA
     VkBufferCreateInfo instanceBufferInfo = { 
@@ -1568,6 +1612,7 @@ void test() {
     VmaAllocation instanceBufferAllocation;
     debug(VkBuffer instanceBuffer = createBufferWithVma(&vk, &instanceBufferInfo, &instanceAllocInfo, &instanceBufferAllocation));
 
+
     void* instanceData;
     VkResult mapResult = vmaMapMemory(vk.allocator, instanceBufferAllocation, &instanceData);
     if (mapResult != VK_SUCCESS) {
@@ -1576,6 +1621,7 @@ void test() {
     }
     memcpy(instanceData, all_instances, sizeof(InstanceData) * ALL_INSTANCE_COUNT);
     vmaUnmapMemory(vk.allocator, instanceBufferAllocation);
+
 
     debug(VkPipelineLayout graphicsPipelineLayout = createPipelineLayout(vk.device, vk.descriptor.set_layouts_p[vk.descriptor.sets_size - 1]));
     debug(VkPipeline graphicsPipeline = createGraphicsPipeline(
@@ -1592,7 +1638,7 @@ void test() {
         vk.swap_chain.render_pass,
         vk.swap_chain.frame_buffers_p,
         vk.swap_chain.image_count,
-        instanceBuffer,
+        instance_buffer.buffer,
         vk.descriptor.sets_p[vk.descriptor.sets_size - 1],
         vk.swap_chain.extent
     ));
@@ -1628,8 +1674,8 @@ void test() {
         vk.descriptor.pool,
         uniformBuffer,
         uniformBufferAllocation,
-        instanceBuffer,
-        instanceBufferAllocation,
+        instance_buffer.buffer,
+        instance_buffer.allocation,
         vk.descriptor.sets_p[vk.descriptor.sets_size-1],
         vk.swap_chain.swap_chain,
         vk.swap_chain.image_views_p,
