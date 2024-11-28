@@ -51,6 +51,48 @@ typedef struct {
     VkImageLayout layout;
 } VulkanImage;
 
+typedef struct {
+
+// STATIC
+    void*                       window_p;
+    VkInstance                  instance;
+    VkDebugUtilsMessengerEXT    debug_messenger;
+    VkSurfaceKHR                surface;
+    VkPhysicalDevice            physical_device;
+    VkDevice                    device;
+    VkQueueFamilyIndices        queue_family_indices;
+    VkQueues                    queues;
+
+    struct {
+        VkRenderPass            render_pass;
+        VkSwapchainKHR          swap_chain;
+        VkFormat                image_format;
+        unsigned int            image_count;
+        VkExtent2D              extent;
+        VkImageView*            image_views_p;
+        VkFramebuffer*          frame_buffers_p;
+    }                           swap_chain;
+
+    struct {
+        VkCommandPool           pool;
+        VkCommandPoolCreateInfo pool_info;
+        VkCommandBuffer*        buffers_p;
+        size_t                  buffers_p_size;
+    }                           command;
+
+    struct {
+        VkDescriptorPool        pool;
+        //VkDescriptorPoolCreateInfo        info;
+
+        VkDescriptorSet*        sets_p;
+        VkDescriptorSetLayout*  set_layouts_p;
+        size_t                  sets_size;
+    }                           descriptor;
+
+    VmaAllocator allocator;
+
+} VK;
+
 VulkanImage                 createVulkanImage( VkDevice device, VkPhysicalDevice physicalDevice, VkFormat format, VkExtent3D extent, VkImageUsageFlags usage, VkMemoryPropertyFlags properties );
 VkImageView                 createImageView( VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags );
 VkSampler                   createImageSampler( VkDevice device );
@@ -74,7 +116,7 @@ VkDescriptorSetLayout       createDescriptorSetLayout(VkDevice device);
 VkPipelineLayout            createPipelineLayout(VkDevice device, VkDescriptorSetLayout layout);
 VkSwapchainKHR              createSwapChain(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkQueueFamilyIndices indices, VkExtent2D extent, VkFormat* swapChainImageFormat);
 VkRenderPass                createRenderPass(VkDevice device, VkFormat imageFormat);
-VkPipeline                  createGraphicsPipeline(VkDevice device, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, VkExtent2D swapChainExtent);
+VkPipeline                  createGraphicsPipeline(VK* vk, VkPipelineLayout pipelineLayout);
 VkImageView*                createImageViews(VkDevice device, VkSwapchainKHR swapChain, VkFormat imageFormat, uint32_t imageCount);
 VkFramebuffer*              createFramebuffers(VkDevice device, VkRenderPass renderPass, VkImageView* imageViews, uint32_t imageCount, VkExtent2D extent);
 VkBuffer                    createUniformBuffer_2(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceMemory* bufferMemory);
@@ -85,7 +127,7 @@ VkBuffer                    createInstanceBuffer_2(VkDevice device, VkPhysicalDe
 VkCommandBuffer*            createCommandBuffersForSwapchain(VkDevice device, VkCommandPool commandPool, VkPipeline graphicsPipeline, VkPipelineLayout pipelineLayout, VkRenderPass renderPass, VkFramebuffer* framebuffers, uint32_t imageCount, VkBuffer instanceBuffer, VkDescriptorSet descriptorSet, VkExtent2D swapChainExtent);
 VkSemaphore                 createSemaphore(VkDevice device);
 VkFence                     createFence(VkDevice device);
-void                        mainLoop(VmaAllocator allocator,VkDevice device,VkQueue graphicsQueue,VkQueue presentQueue,VkSwapchainKHR swapChain,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence,VkCommandBuffer* commandBuffers,uint32_t imageCount,VkDescriptorSet descriptorSet,VkExtent2D swapChainExtent,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation);
+void mainLoop(VK* vk,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence,VkCommandBuffer* commandBuffers,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation);
 void                        test();
 
 #endif // VULKAN_GUI_H

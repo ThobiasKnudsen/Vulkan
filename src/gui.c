@@ -381,10 +381,8 @@ VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout lay
 
 // Create Graphics Pipeline
 VkPipeline createGraphicsPipeline(
-    VkDevice device,
-    VkPipelineLayout pipelineLayout,
-    VkRenderPass renderPass,
-    VkExtent2D swapChainExtent
+    VK* vk,
+    VkPipelineLayout pipelineLayout
 ) {
     VkGraphicsPipelineCreateInfo pipelineInfo = {
         .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -392,12 +390,12 @@ VkPipeline createGraphicsPipeline(
         .pStages             = (VkPipelineShaderStageCreateInfo[2]) {{
             .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .stage  = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = createShaderModule("shaders/shader.vert.glsl", shaderc_glsl_vertex_shader, device),
+            .module = createShaderModule("shaders/shader.vert.glsl", shaderc_glsl_vertex_shader, vk->device),
             .pName  = "main"
         },{
             .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = createShaderModule("shaders/shader.frag.glsl", shaderc_glsl_fragment_shader, device),
+            .module = createShaderModule("shaders/shader.frag.glsl", shaderc_glsl_fragment_shader, vk->device),
             .pName  = "main"
         }},
         .pVertexInputState = &(VkPipelineVertexInputStateCreateInfo) {
@@ -457,15 +455,15 @@ VkPipeline createGraphicsPipeline(
             .pViewports    = &(VkViewport) {
                 .x        = 0.0f,
                 .y        = 0.0f,
-                .width    = (float)swapChainExtent.width,
-                .height   = (float)swapChainExtent.height,
+                .width    = (float)vk->swap_chain.extent.width,
+                .height   = (float)vk->swap_chain.extent.height,
                 .minDepth = 0.0f,
                 .maxDepth = 1.0f
             },
             .scissorCount  = 1,
             .pScissors     = &(VkRect2D) {
                 .offset = (VkOffset2D){0, 0},
-                .extent = swapChainExtent
+                .extent = vk->swap_chain.extent
             }
         },
         .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
@@ -516,20 +514,20 @@ VkPipeline createGraphicsPipeline(
         },
         .pDynamicState       = NULL,
         .layout              = pipelineLayout,
-        .renderPass          = renderPass,
+        .renderPass          = vk->swap_chain.render_pass,
         .subpass             = 0,
         .basePipelineHandle  = VK_NULL_HANDLE,
         .basePipelineIndex   = -1
     };
 
     VkPipeline graphicsPipeline;
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(vk->device, VK_NULL_HANDLE, 1, &pipelineInfo, NULL, &graphicsPipeline) != VK_SUCCESS) {
         printf("Failed to create graphics pipeline\n");
         exit(EXIT_FAILURE);
     }
 
-    vkDestroyShaderModule(device, pipelineInfo.pStages[0].module, NULL);
-    vkDestroyShaderModule(device, pipelineInfo.pStages[1].module, NULL);
+    vkDestroyShaderModule(vk->device, pipelineInfo.pStages[0].module, NULL);
+    vkDestroyShaderModule(vk->device, pipelineInfo.pStages[1].module, NULL);
 
     return graphicsPipeline;
 }
@@ -796,18 +794,11 @@ VkFence createFence(VkDevice device) {
 
 // Modified mainLoop function using VMA
 void mainLoop(
-    VmaAllocator allocator,
-    VkDevice device,
-    VkQueue graphicsQueue,
-    VkQueue presentQueue,
-    VkSwapchainKHR swapChain,
+    VK* vk,
     VkSemaphore imageAvailableSemaphore,
     VkSemaphore renderFinishedSemaphore,
     VkFence inFlightFence,
     VkCommandBuffer* commandBuffers,
-    uint32_t imageCount,
-    VkDescriptorSet descriptorSet,
-    VkExtent2D swapChainExtent,
     VkBuffer uniformBuffer,
     VmaAllocation uniformBufferAllocation
 ){
@@ -825,39 +816,39 @@ void mainLoop(
 
             // Update Uniform Buffer Data
             UniformBufferObject ubo = {};
-            ubo.targetWidth = (float)swapChainExtent.width;
-            ubo.targetHeight = (float)swapChainExtent.height;
+            ubo.targetWidth = (float)vk->swap_chain.extent.width;
+            ubo.targetHeight = (float)vk->swap_chain.extent.height;
 
             void* data;
-            VkResult mapResult = vmaMapMemory(allocator, uniformBufferAllocation, &data);
-            if (mapResult != VK_SUCCESS) {
-                printf("Failed to map uniform buffer memory: %d\n", mapResult);
+            VkResult map_result = vmaMapMemory(vk->allocator, uniformBufferAllocation, &data);
+            if (map_result != VK_SUCCESS) {
+                printf("Failed to map uniform buffer memory: %d\n", map_result);
                 running = 0;
                 continue;
             }
             memcpy(data, &ubo, sizeof(ubo));
-            vmaUnmapMemory(allocator, uniformBufferAllocation);
-            vkWaitForFences(device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
-            vkResetFences(device, 1, &inFlightFence);
+            vmaUnmapMemory(vk->allocator, uniformBufferAllocation);
+            vkWaitForFences(vk->device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
+            vkResetFences(vk->device, 1, &inFlightFence);
 
             // Acquire the next image from the swap chain
             uint32_t imageIndex;
-            VkResult acquireResult = vkAcquireNextImageKHR(
-                device,
-                swapChain,
+            VkResult acquire_result = vkAcquireNextImageKHR(
+                vk->device,
+                vk->swap_chain.swap_chain,
                 UINT64_MAX,
                 imageAvailableSemaphore,
                 VK_NULL_HANDLE,
                 &imageIndex
             );
 
-            if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR || acquireResult == VK_SUBOPTIMAL_KHR) {
+            if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR || acquire_result == VK_SUBOPTIMAL_KHR) {
                 printf("Swapchain out of date or suboptimal. Consider recreating swapchain.\n");
                 running = 0;
                 continue;
             }
-            else if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
-                printf("Failed to acquire swapchain image: %d\n", acquireResult);
+            else if (acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR) {
+                printf("Failed to acquire swapchain image: %d\n", acquire_result);
                 running = 0;
                 continue;
             }
@@ -874,7 +865,7 @@ void mainLoop(
                 .pSignalSemaphores    = (VkSemaphore[]){ renderFinishedSemaphore }
             };
 
-            VkResult submitResult = vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence);
+            VkResult submitResult = vkQueueSubmit(vk->queues.graphics, 1, &submitInfo, inFlightFence);
             if (submitResult != VK_SUCCESS) {
                 printf("Failed to submit draw command buffer: %d\n", submitResult);
                 running = 0;
@@ -882,77 +873,35 @@ void mainLoop(
             }
 
             // Present the image
-            VkPresentInfoKHR presentInfo = {
+            VkPresentInfoKHR present_info = {
                 .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
                 .waitSemaphoreCount = 1,
                 .pWaitSemaphores    = (VkSemaphore[]){ renderFinishedSemaphore },
                 .swapchainCount     = 1,
-                .pSwapchains        = (VkSwapchainKHR[]){ swapChain },
+                .pSwapchains        = (VkSwapchainKHR[]){ vk->swap_chain.swap_chain },
                 .pImageIndices      = &imageIndex  
             };
 
-            VkResult presentResult = vkQueuePresentKHR(presentQueue, &presentInfo);
-            if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+            VkResult present_result = vkQueuePresentKHR(vk->queues.present, &present_info);
+            if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
                 printf("Swapchain out of date or suboptimal during present. Consider recreating swapchain.\n");
                 running = 0;
                 continue;
             }
-            else if (presentResult != VK_SUCCESS) {
-                printf("Failed to present swapchain image: %d\n", presentResult);
+            else if (present_result != VK_SUCCESS) {
+                printf("Failed to present swapchain image: %d\n", present_result);
                 running = 0;
                 continue;
             }
 
             // Optionally wait for the present queue to be idle
-            vkQueueWaitIdle(presentQueue);
+            vkQueueWaitIdle(vk->queues.present);
         }
     #else
         printf("SDL has to be included and it has to be included\n");
         exit(EXIT_FAILURE);
     #endif
 }
-
-typedef struct {
-
-// STATIC
-    void*                       window_p;
-    VkInstance                  instance;
-    VkDebugUtilsMessengerEXT    debug_messenger;
-    VkSurfaceKHR                surface;
-    VkPhysicalDevice            physical_device;
-    VkDevice                    device;
-    VkQueueFamilyIndices        queue_family_indices;
-    VkQueues                    queues;
-
-    struct {
-        VkRenderPass            render_pass;
-        VkSwapchainKHR          swap_chain;
-        VkFormat                image_format;
-        unsigned int            image_count;
-        VkExtent2D              extent;
-        VkImageView*            image_views_p;
-        VkFramebuffer*          frame_buffers_p;
-    }                           swap_chain;
-
-    struct {
-        VkCommandPool           pool;
-        VkCommandPoolCreateInfo pool_info;
-        VkCommandBuffer*        buffers_p;
-        size_t                  buffers_p_size;
-    }                           command;
-
-    struct {
-        VkDescriptorPool        pool;
-        //VkDescriptorPoolCreateInfo        info;
-
-        VkDescriptorSet*        sets_p;
-        VkDescriptorSetLayout*  set_layouts_p;
-        size_t                  sets_size;
-    }                           descriptor;
-
-    VmaAllocator allocator;
-
-} VK;
 
 VK VK_Create(unsigned int width, unsigned int height, const char* title) {
     VK vk;
@@ -1620,12 +1569,7 @@ void test() {
     InstanceBuffer instance_buffer = createInstanceBuffer(vk.allocator, all_instances, sizeof(InstanceData) * ALL_INSTANCE_COUNT);
 
     debug(VkPipelineLayout graphicsPipelineLayout = createPipelineLayout(vk.device, vk.descriptor.set_layouts_p[descriptor_index]));
-    debug(VkPipeline graphicsPipeline = createGraphicsPipeline(
-        vk.device,
-        graphicsPipelineLayout,
-        vk.swap_chain.render_pass,
-        vk.swap_chain.extent
-    ));
+    debug(VkPipeline graphicsPipeline = createGraphicsPipeline(&vk, graphicsPipelineLayout));
     debug(VkCommandBuffer* commandBuffers = createCommandBuffersForSwapchain(
         vk.device,
         vk.command.pool,
@@ -1642,18 +1586,11 @@ void test() {
     debug(VkSemaphore renderFinishedSemaphore = createSemaphore(vk.device));
     debug(VkFence inFlightFence = createFence(vk.device));
     debug(mainLoop(
-        vk.allocator,
-        vk.device,
-        vk.queues.graphics,
-        vk.queues.present,
-        vk.swap_chain.swap_chain,
+        &vk,
         imageAvailableSemaphore, 
         renderFinishedSemaphore,
         inFlightFence,
         commandBuffers,
-        vk.swap_chain.image_count,
-        vk.descriptor.sets_p[descriptor_index],
-        vk.swap_chain.extent,
         uniform_buffer.buffer,
         uniform_buffer.allocation
     ));
