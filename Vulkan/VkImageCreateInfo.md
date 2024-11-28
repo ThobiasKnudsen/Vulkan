@@ -1,5 +1,0 @@
-- [[VkImageType]] could be [[VK_IMAGE_TYPE_1D]], [[VK_IMAGE_TYPE_2D]] or [[VK_IMAGE_TYPE_3D]].
-- [[VkImageViewType]] could be [[VK_IMAGE_VIEW_TYPE_1D]], [[VK_IMAGE_VIEW_TYPE_2D]], [[VK_IMAGE_VIEW_TYPE_3D]], [[VK_IMAGE_VIEW_TYPE_CUBE]], [[VK_IMAGE_VIEW_TYPE_1D_ARRAY]], [[VK_IMAGE_VIEW_TYPE_2D_ARRAY]] or [[VK_IMAGE_VIEW_TYPE_CUBE_ARRAY]]
-- Array Layers is 1 if there is no array and for cube array there is 6 layers for each side which makes up one cube
-- Mipmap Levels divides the size in 2 for every layer
-- [[VkFormat]] includes Color format (e.g. [[VK_FORMAT_R8G8B8A8_UNORM]]) Depth format (e.g. [[VK_FORMAT_D32_SFLOAT]]) and 

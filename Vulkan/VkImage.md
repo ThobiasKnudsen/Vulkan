@@ -1,2 +1,0 @@
-This holds the actual texture data but doesn't contain much metadata. [[VkImageView]] holds more metadata and is also an extension of VkImage.
-[[VkSampler]] holds the information on how the shader should access the image.
