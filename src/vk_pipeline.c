@@ -1,6 +1,6 @@
 #include "vk.h"
 
-VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout* p_set_layouts, size_t set_layout_count) {
+VkPipelineLayout vk_PipelineLayout_Create(VkDevice device, VkDescriptorSetLayout* p_set_layouts, size_t set_layout_count) {
     VkPipelineLayoutCreateInfo vk_pipeline_layoutInfo = {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount         = set_layout_count,
@@ -15,17 +15,19 @@ VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout* p_
     }
     return pipelineLayout;
 }
-VkPipeline createGraphicsPipeline(
-    VK* p_vk,
+VkPipeline vk_Pipeline_Graphics_Create(
+    Vk* p_vk,
     VkPipelineLayout pipelineLayout
 ) {
-    VkPipelineRenderingCreateInfo pipelineRenderingInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-        .pNext = NULL,
-        .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &p_vk->swap_chain.image_format,
-        // Add depth and stencil formats if used
-    };
+    uint32_t vertex_attrib_count;
+    uint32_t vertex_binding_stride;
+    SpvShader spv_vertex_shader = vk_SpvShader_CreateFromGlslFile(p_vk, "shaders/shader.vert.glsl", shaderc_glsl_vertex_shader);
+    VkVertexInputAttributeDescription* vertex_input_attrib_desc = vk_VertexInputAttributeDescriptions_CreateFromVertexShader(
+        spv_vertex_shader, 
+        &vertex_attrib_count,
+        &vertex_binding_stride
+    );
+    
     VkGraphicsPipelineCreateInfo pipelineInfo = {
         .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext               = &(VkPipelineRenderingCreateInfo) {
@@ -38,12 +40,12 @@ VkPipeline createGraphicsPipeline(
         .pStages             = (VkPipelineShaderStageCreateInfo[2]) {{
             .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .stage  = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = createShaderModuleFromGlslFile(p_vk, "shaders/shader.vert.glsl", shaderc_glsl_vertex_shader),
+            .module = vk_ShaderModule_Create(p_vk, spv_vertex_shader),
             .pName  = "main"
         },{
             .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .stage  = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = createShaderModuleFromGlslFile(p_vk, "shaders/shader.frag.glsl", shaderc_glsl_fragment_shader),
+            .module = vk_ShaderModule_CreateFromGlslFile(p_vk, "shaders/shader.frag.glsl", shaderc_glsl_fragment_shader),
             .pName  = "main"
         }},
         .pVertexInputState = &(VkPipelineVertexInputStateCreateInfo) {
@@ -51,46 +53,11 @@ VkPipeline createGraphicsPipeline(
             .vertexBindingDescriptionCount   = 1,
             .pVertexBindingDescriptions      = (VkVertexInputBindingDescription[1]) {{
                 .binding   = 0,
-                .stride    = sizeof(InstanceData),
+                .stride    = vertex_binding_stride,
                 .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE
             }},
-            .vertexAttributeDescriptionCount = 7,
-            .pVertexAttributeDescriptions    = (VkVertexInputAttributeDescription[7]) {{
-                .binding  = 0,
-                .location = 0,
-                .format   = VK_FORMAT_R32G32_SFLOAT,
-                .offset   = offsetof(InstanceData, pos)
-                },{
-                .binding  = 0,
-                .location = 1,
-                .format   = VK_FORMAT_R32G32_SFLOAT,
-                .offset   = offsetof(InstanceData, size)
-                },{
-                .binding  = 0,
-                .location = 2,
-                .format   = VK_FORMAT_R32_SFLOAT,
-                .offset   = offsetof(InstanceData, rotation)
-                },{
-                .binding  = 0,
-                .location = 3,
-                .format   = VK_FORMAT_R32_SFLOAT,
-                .offset   = offsetof(InstanceData, corner_radius)
-                },{
-                .binding  = 0,
-                .location = 4,
-                .format   = VK_FORMAT_R8G8B8A8_UNORM,
-                .offset   = offsetof(InstanceData, color)
-                },{
-                .binding  = 0,
-                .location = 5,
-                .format   = VK_FORMAT_R32_UINT,
-                .offset   = offsetof(InstanceData, tex_index)
-                },{
-                .binding  = 0,
-                .location = 6,
-                .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
-                .offset   = offsetof(InstanceData, tex_rect)
-            }},
+            .vertexAttributeDescriptionCount = vertex_attrib_count,
+            .pVertexAttributeDescriptions    = vertex_input_attrib_desc,
         }, 
         .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
             .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,

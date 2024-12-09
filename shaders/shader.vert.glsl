@@ -5,7 +5,7 @@ layout(location = 0) in vec2 inPos;             // Position in pixels (0 to targ
 layout(location = 1) in vec2 inSize;            // Size in pixels
 layout(location = 2) in float inRotation;       // Rotation angle in degrees
 layout(location = 3) in float inCornerRadius;   // in pixels
-layout(location = 4) in vec4 inColor;           // Color as RGBA
+layout(location = 4) in uint inColor;           // Color as RGBA
 layout(location = 5) in uint inTexIndex;         // Texture information (if used)
 layout(location = 6) in vec4 inTexRect;         // Texture rectangle (u, v, width, height)
 
@@ -22,6 +22,17 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float targetHeight;  // Height of the rendering target in pixels
     float padding[2];    // Padding for 16-byte alignment (if using std140)
 } ubo;
+
+
+vec4 unpackColor(uint inColor) {
+    // Extract each 8-bit channel using bitwise operations
+    float r = float((inColor >> 24) & 0xFF) / 255.0;
+    float g = float((inColor >> 16) & 0xFF) / 255.0;
+    float b = float((inColor >> 8) & 0xFF) / 255.0;
+    float a = float(inColor & 0xFF) / 255.0;
+    
+    return vec4(r, g, b, a);
+}
 
 void main() {
     vec2 positions[4] = vec2[](
@@ -45,7 +56,7 @@ void main() {
     gl_Position = vec4(ndcPos, 0.0, 1.0);
 
     
-    fragColor = inColor;
+    fragColor = unpackColor(inColor);
     fragTexCoord = inTexRect.xy + (pos / inSize) * inTexRect.zw;
     fragTexIndex = inTexIndex;
     fragCornerRadiusWidth = inCornerRadius/inSize.x;

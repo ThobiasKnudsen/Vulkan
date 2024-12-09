@@ -114,7 +114,7 @@ void DebugPrintf(const char* message, size_t line, const char* file) {
 }
 void* DebugMalloc (size_t size, size_t line, const char* file) {
 
-	if (debug_data.all_allocs_count >= debug_data.all_allocs_size) {
+	while (debug_data.all_allocs_count >= debug_data.all_allocs_size) {
 		debug_data.all_allocs_size *= 2;
 		void* tmp = realloc(debug_data.all_allocs, debug_data.all_allocs_size * sizeof(alloc_tracking_t));
 		if (!tmp) {
@@ -157,24 +157,32 @@ void* DebugMalloc (size_t size, size_t line, const char* file) {
 }
 void* DebugRealloc(void* ptr, size_t size, size_t line, char* file) {
 
+	void* new_ptr = NULL;
+
     for (size_t i = 0; i < debug_data.all_allocs_count; i++) {
         if (debug_data.all_allocs[i].ptr == ptr) {
-            void* tmp = realloc(ptr, size);
-            if (!tmp) {
-                fprintf(stderr, "ERROR | Failed to reallocate memory in DebugRealloc at %s:%zu\n", file, line);
+        	if (new_ptr) {
+        		DebugPrintf("ERROR: there are multiple of given ptr in allocation tracking for DebugRealloc", __LINE__, __FILE__);
+    			exit(-1);
+        	}
+            new_ptr = realloc(ptr, size);
+            if (!new_ptr) {
+                fprintf(stderr, "ERROR: Failed to reallocate memory in DebugRealloc at %s:%zu\n", file, line);
                 exit(EXIT_FAILURE);
             }
-            debug_data.all_allocs[i].ptr = tmp;
+            debug_data.all_allocs[i].ptr = new_ptr;
             debug_data.all_allocs[i].size_bytes = size;
             debug_data.all_allocs[i].line = line;
             debug_data.all_allocs[i].file = file;
-            return tmp;
         }
     }
 
-	DebugPrintf("ERROR: Pointer not found in allocation tracking for DebugRealloc", __LINE__, __FILE__);
-    exit(-1);
+    if (new_ptr == NULL) {
+    	DebugPrintf("ERROR: Pointer not found in allocation tracking for DebugRealloc", __LINE__, __FILE__);
+	    exit(-1);
+    }
 
+	return new_ptr;
 }
 void  DebugFree   (void* ptr,              size_t line, const char* file) {
 	if (!ptr) {

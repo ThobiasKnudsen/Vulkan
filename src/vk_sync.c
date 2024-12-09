@@ -1,6 +1,6 @@
 #include "vk.h"
 
-VkSemaphore createSemaphore(VkDevice device) {
+VkSemaphore vk_Semaphore_Create(VkDevice device) {
     VkSemaphoreCreateInfo semaphoreInfo = {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -12,7 +12,7 @@ VkSemaphore createSemaphore(VkDevice device) {
 
     return semaphore;
 }
-VkFence createFence(VkDevice device) {
+VkFence vk_Fence_Create(VkDevice device) {
     VkFenceCreateInfo fenceInfo = {};
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;

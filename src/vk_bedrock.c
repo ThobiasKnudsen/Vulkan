@@ -17,11 +17,11 @@ const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
     // Instance 0
     {
         .pos = {0.0f, 0.0f},
-        .size = {200.0f, 100.0f},
+        .size = {200.0f, 200.0f},
         .rotation = 0.0f,
         .corner_radius = 10.0f,
-        .color = 0xFF0000FF, // Red color in RGBA8
-        .tex_index = 0,
+        .color = 0x88880088, // Red color in RGBA8
+        .tex_index = 1,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 1
@@ -30,8 +30,8 @@ const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
         .size = {100.0f, 100.0f},
         .rotation = 30.0f,
         .corner_radius = 10.0f,
-        .color = 0xFF00FF00, // Green color in RGBA8
-        .tex_index = 0,
+        .color = 0xFF00FF88, // Green color in RGBA8
+        .tex_index = 1,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 2
@@ -41,7 +41,7 @@ const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
         .rotation = 60.0f,
         .corner_radius = 10.0f,
         .color = 0xFFFF00FF, // Blue color in RGBA8
-        .tex_index = 0,
+        .tex_index = 1,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 3
@@ -50,8 +50,8 @@ const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
         .size = {100.0f, 100.0f},
         .rotation = 90.0f,
         .corner_radius = 10.0f,
-        .color = 0xFFFFFF00, // Cyan color in RGBA8
-        .tex_index = 0,
+        .color = 0xFFFFFFFF, // Cyan color in RGBA8
+        .tex_index = 1,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 4
@@ -61,7 +61,7 @@ const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
         .rotation = 120.0f,
         .corner_radius = 10.0f,
         .color = 0xFF00FFFF, // Yellow color in RGBA8
-        .tex_index = 0,
+        .tex_index = 1,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
 };
@@ -77,9 +77,9 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     return VK_FALSE;
 }
 
-VK VK_create(unsigned int width, unsigned int height, const char* title) {
-    VK vk;
-    memset(&vk, 0, sizeof(VK));
+Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
+    Vk vk;
+    memset(&vk, 0, sizeof(Vk));
     vk.window_p                     = NULL;
     vk.swap_chain.images_p          = NULL;
     vk.swap_chain.image_views_p     = NULL;
@@ -89,21 +89,19 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
     // shaderc
     {
         vk.shaderc_compiler = shaderc_compiler_initialize();
-        vk.shaderc_options = shaderc_compile_options_initialize();
-        shaderc_compile_options_set_optimization_level(vk.shaderc_options, shaderc_optimization_level_performance);
+        VERIFY(vk.shaderc_compiler, "failed to initialize\n ");
+        debug(vk.shaderc_options = shaderc_compile_options_initialize());
+        VERIFY(vk.shaderc_options, "failed to initialize\n ");
+        debug(shaderc_compile_options_set_optimization_level(vk.shaderc_options, shaderc_optimization_level_zero));
+        debug(shaderc_compile_options_set_target_env(vk.shaderc_options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_3));
+        // Optionally, set other options like generating debug info
+        // shaderc_compile_options_set_generate_debug_info(p_vk->shaderc_options);
     }
     // createWindow
     {
-        if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-            printf("ERROR: SDL_Init: %s\n", SDL_GetError());
-            exit(-1);
-        }
-        vk.window_p = SDL_CreateWindow(title,SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,width,height,SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN);
-        if (!vk.window_p) {
-            printf("ERROR: SDL_CreateWindow: %s\n", SDL_GetError());
-            SDL_Quit();
-            exit(-1);
-        }
+        VERIFY(SDL_Init(SDL_INIT_VIDEO) == 0, "failed to initialize\n ");
+        debug(vk.window_p = SDL_CreateWindow( title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_VULKAN | SDL_WINDOW_SHOWN ));
+        VERIFY(vk.window_p, "failed to create\n ");
     }
     // createVulkanInstance
     {
@@ -113,31 +111,16 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
         const char* validationLayers[] = { "VK_LAYER_KHRONOS_validation" };
 
         uint32_t sdlExtensionCount = 0;
-        if (!SDL_Vulkan_GetInstanceExtensions((SDL_Window*)vk.window_p, &sdlExtensionCount, NULL)) {
-            printf("Failed to get SDL Vulkan instance extensions: %s\n", SDL_GetError());
-            exit(-1);
-        }
+        VERIFY(SDL_Vulkan_GetInstanceExtensions((SDL_Window*)vk.window_p, &sdlExtensionCount, NULL), "%s\n ", SDL_GetError());
 
         const char** sdlExtensions = (const char**)alloc(NULL, sizeof(const char*) * sdlExtensionCount);
-        if (sdlExtensions == NULL) {
-            printf("Failed to allocate memory for SDL Vulkan extensions\n");
-            exit(-1);
-        }
+        VERIFY(sdlExtensions, "failed to allocate memory\n ");
 
-        if (!SDL_Vulkan_GetInstanceExtensions((SDL_Window*)vk.window_p, &sdlExtensionCount, sdlExtensions)) {
-            printf("Failed to get SDL Vulkan instance extensions: %s\n", SDL_GetError());
-            free(sdlExtensions);
-            exit(-1);
-        }
-
+        VERIFY(SDL_Vulkan_GetInstanceExtensions((SDL_Window*)vk.window_p, &sdlExtensionCount, sdlExtensions), "%s\n ", SDL_GetError());
         // Optional: Add VK_EXT_debug_utils_EXTENSION_NAME for debugging
         totalExtensionCount = sdlExtensionCount + 1;
         allExtensions = (const char**)alloc(NULL, sizeof(const char*) * totalExtensionCount);
-        if (allExtensions == NULL) {
-            printf("Failed to allocate memory for all Vulkan extensions\n");
-            free(sdlExtensions);
-            exit(-1);
-        }
+        VERIFY(allExtensions, "failed to allocate memory\n ");
         memcpy(allExtensions, sdlExtensions, sizeof(const char*) * sdlExtensionCount);
         allExtensions[sdlExtensionCount] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 
@@ -170,16 +153,10 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
             }
         };
 
-        result = vkCreateInstance(&instanceCreateInfo, NULL, &vk.instance);
-        if (sdlExtensions == NULL) {
-            printf("sdl allready freed\n");
-        }
+        TRACK(result = vkCreateInstance(&instanceCreateInfo, NULL, &vk.instance));
         free(sdlExtensions);
         free(allExtensions);
-        if (result != VK_SUCCESS) {
-            printf("Failed to create Vulkan instance\n");
-            exit(-1);
-        }
+        VERIFY(result==VK_SUCCESS, "failed to create VkInstance\n ");
     }
     // setupDebugMessenger
     {
@@ -200,10 +177,7 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
             };
 
             vk.debug_messenger = VK_NULL_HANDLE;
-            if (funcCreateDebugUtilsMessengerEXT(vk.instance, &debugCreateInfo, NULL, &vk.debug_messenger) != VK_SUCCESS) {
-                printf("Failed to set up debug messenger\n");
-                exit(-1);
-            }
+            VERIFY(funcCreateDebugUtilsMessengerEXT(vk.instance, &debugCreateInfo, NULL, &vk.debug_messenger) == VK_SUCCESS, "Failed to set up debug messenger\n ");
         } else {
             printf("vkCreateDebugUtilsMessengerEXT not available\n");
             vk.debug_messenger = VK_NULL_HANDLE;
@@ -212,31 +186,17 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
     // createSurface
     {
         vk.surface = VK_NULL_HANDLE;
-        if (!SDL_Vulkan_CreateSurface((SDL_Window*)vk.window_p, vk.instance, &vk.surface)) {
-            printf( "Failed to create Vulkan surface: %s\n", SDL_GetError());
-            exit(-1);
-        }
+        VERIFY(SDL_Vulkan_CreateSurface((SDL_Window*)vk.window_p, vk.instance, &vk.surface), "%s\n", SDL_GetError());
     }
     // getPhysicalDevice
     {
         uint32_t device_count = 0;
         result = vkEnumeratePhysicalDevices(vk.instance, &device_count, NULL);
-        if (result != VK_SUCCESS || device_count == 0) {
-            printf( "Failed to find GPUs with Vulkan support\n");
-            exit(-1);
-        }
+        VERIFY(!(result != VK_SUCCESS || device_count == 0), "Failed to find GPUs with Vulkan support\n");
 
         VkPhysicalDevice* devices = alloc(NULL, sizeof(VkPhysicalDevice) * device_count);
-        if (devices == NULL) {
-            printf( "Failed to allocate memory for physical devices\n");
-            exit(-1);
-        }
-        result = vkEnumeratePhysicalDevices(vk.instance, &device_count, devices);
-        if (result != VK_SUCCESS) {
-            printf( "Failed to enumerate physical devices\n");
-            free(devices);
-            exit(-1);
-        }
+        VERIFY(devices, "Failed to allocate memory for physical devices\n");
+        VERIFY(vkEnumeratePhysicalDevices(vk.instance, &device_count, devices)==VK_SUCCESS,  "Failed to enumerate physical devices\n");
 
         // Select the first suitable device
         vk.physical_device = devices[0];
@@ -257,10 +217,7 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
         }
         free(extensions);
 
-        if (!dynamicRenderingSupported) {
-            printf("Dynamic Rendering not supported on this device.\n");
-            exit(-1);
-        }
+        VERIFY(dynamicRenderingSupported, "Dynamic Rendering not supported on this device.\n");
     }
     // getQueueFamilyIndices
     {
@@ -271,16 +228,10 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
 
         uint32_t queue_family_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(vk.physical_device, &queue_family_count, NULL);
-        if (queue_family_count == 0) {
-            printf("Failed to find any queue families\n");
-            exit(-1);
-        }
+        VERIFY(queue_family_count != 0, "Failed to find any queue families\n");
 
         VkQueueFamilyProperties* queue_families = alloc(NULL, sizeof(VkQueueFamilyProperties) * queue_family_count);
-        if (queue_families == NULL) {
-            printf("Failed to allocate memory for queue family properties\n");
-            exit(-1);
-        }
+        VERIFY(queue_families, "Failed to allocate memory for queue family properties\n");
 
         vkGetPhysicalDeviceQueueFamilyProperties(vk.physical_device, &queue_family_count, queue_families);
 
@@ -323,9 +274,17 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
         free(queue_families);
 
         // Validate that essential queue family_indices are found
-        if (vk.queue_family_indices.graphics == UINT32_MAX || vk.queue_family_indices.present == UINT32_MAX) {
-            printf("Failed to find required queue families\n");
-            exit(-1);
+        VERIFY(!(vk.queue_family_indices.graphics == UINT32_MAX || vk.queue_family_indices.present == UINT32_MAX), "Failed to find required queue families\n");
+    }
+    // check for driver compatability
+    {
+        VkPhysicalDeviceFeatures deviceFeatures;
+        vkGetPhysicalDeviceFeatures(vk.physical_device, &deviceFeatures);
+
+        if (!deviceFeatures.samplerAnisotropy) {
+            printf("samplerAnisotropy is not supported\n");
+        } else {
+            printf("samplerAnisotropy is supported\n");
         }
     }
     // getDevice
@@ -362,10 +321,7 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
         #undef ADD_UNIQUE_FAMILY
 
         VkDeviceQueueCreateInfo* queue_create_infos = alloc(NULL, sizeof(VkDeviceQueueCreateInfo) * unique_count);
-        if (!queue_create_infos) {
-            printf("Failed to allocate memory for queue create infos.\n");
-            exit(-1);
-        }
+        VERIFY(queue_create_infos, "Failed to allocate memory for queue create infos.\n");
         for (uint32_t i = 0; i < unique_count; i++) {
             memset(&queue_create_infos[i], 0, sizeof(VkDeviceQueueCreateInfo));
             queue_create_infos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -388,19 +344,17 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .pQueueCreateInfos = queue_create_infos,
             .queueCreateInfoCount = unique_count,
-            .pEnabledFeatures = &(VkPhysicalDeviceFeatures){0},
+            .pEnabledFeatures = &(VkPhysicalDeviceFeatures){
+                .samplerAnisotropy = VK_TRUE,
+            },
             .enabledExtensionCount = 2,
             .ppEnabledExtensionNames = deviceExtensions,
             .enabledLayerCount = 0, // Deprecated in newer Vulkan versions
             .ppEnabledLayerNames = NULL,
             .pNext = &dynamicRenderingFeature,
         };
-        result = vkCreateDevice(vk.physical_device, &device_create_info, NULL, &vk.device);
-        if (result != VK_SUCCESS) {
-            printf("Failed to create logical vk.device. Error code: %d\n", result);
-            free(queue_create_infos);
-            exit(-1);
-        }
+        TRACK(result = vkCreateDevice(vk.physical_device, &device_create_info, NULL, &vk.device));
+        VERIFY(result == VK_SUCCESS, "Failed to create logical vk.device. Error code: %d\n", result);
         printf("Logical vk.device created successfully.\n");
         free(queue_create_infos);
     }
@@ -411,11 +365,8 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
         allocatorInfo.device = vk.device;
         allocatorInfo.instance = vk.instance;
 
-        VkResult result = vmaCreateAllocator(&allocatorInfo, &vk.allocator);
-        if (result != VK_SUCCESS) {
-            printf("Failed to create VMA allocator\n");
-            exit(-1);
-        }
+        TRACK(VkResult result = vmaCreateAllocator(&allocatorInfo, &vk.allocator));
+        VERIFY(result == VK_SUCCESS, "Failed to create VMA allocator\n");
     }
     // getQueues
     {
@@ -463,31 +414,22 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
 
         VkSurfaceCapabilitiesKHR surfaceCapabilities;
         VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk.physical_device, vk.surface, &surfaceCapabilities);
-        if (result != VK_SUCCESS) {
-            printf("Failed to get vk.surface capabilities\n");
-            exit(-1);
-        }
+        VERIFY(result == VK_SUCCESS, "Failed to get vk.surface capabilities\n");
 
         VkExtent2D actualExtent = surfaceCapabilities.currentExtent.width != UINT32_MAX ?
                                   surfaceCapabilities.currentExtent :
                                   vk.swap_chain.extent;
 
-        uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physical_device, vk.surface, &formatCount, NULL);
-        if (formatCount == 0) {
-            printf("Failed to find vk.surface formats\n");
-            exit(-1);
-        }
-        VkSurfaceFormatKHR* formats = alloc(NULL, sizeof(VkSurfaceFormatKHR) * formatCount);
-        if (formats == NULL) {
-            printf("Failed to allocate memory for vk.surface formats\n");
-            exit(-1);
-        }
-        vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physical_device, vk.surface, &formatCount, formats);
+        uint32_t format_count;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physical_device, vk.surface, &format_count, NULL);
+        VERIFY(format_count > 0, "Failed to find vk.surface formats\n");
+        VkSurfaceFormatKHR* formats = alloc(NULL, sizeof(VkSurfaceFormatKHR) * format_count);
+        VERIFY(formats, "Failed to allocate memory for vk.surface formats\n");
+        vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physical_device, vk.surface, &format_count, formats);
 
         // Choose a suitable format (e.g., prefer SRGB)
         VkSurfaceFormatKHR chosenFormat = formats[0];
-        for (uint32_t i = 0; i < formatCount; i++) {
+        for (uint32_t i = 0; i < format_count; i++) {
             if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
                 formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
                 chosenFormat = formats[i];
@@ -521,28 +463,22 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
             .clipped        = VK_TRUE,
             .oldSwapchain   = VK_NULL_HANDLE
         };
+
         result = vkCreateSwapchainKHR(vk.device, &swapchainCreateInfo, NULL, &vk.swap_chain.swap_chain);
-        if (result != VK_SUCCESS) {
-            printf("Failed to create swapchain\n");
-            exit(-1);
-        }
+        VERIFY(result == VK_SUCCESS, "Failed to create swapchain\n");
 
         // get VkImages 
         vk.swap_chain.image_count = 0;
         vkGetSwapchainImagesKHR(vk.device, vk.swap_chain.swap_chain, &vk.swap_chain.image_count, NULL);
+        VERIFY(vk.swap_chain.image_count > 0, "there is 0 images in swapchain");
         vk.swap_chain.images_p = alloc(vk.swap_chain.images_p, sizeof(VkImage) * vk.swap_chain.image_count);
-        if (vk.swap_chain.images_p == NULL) {
-            printf("Failed to allocate memory for swapchain images\n");
-            exit(-1);
-        }
+        VERIFY(vk.swap_chain.images_p, "Failed to allocate memory for swapchain images\n");
         vkGetSwapchainImagesKHR(vk.device, vk.swap_chain.swap_chain, &vk.swap_chain.image_count, vk.swap_chain.images_p);
 
         // create VkImageViews
         vk.swap_chain.image_views_p = alloc(vk.swap_chain.image_views_p, sizeof(VkImageView) * vk.swap_chain.image_count);
-        if (vk.swap_chain.image_views_p == NULL) {
-            printf("Failed to allocate memory for image views\n");
-            exit(-1);
-        }
+        VERIFY(vk.swap_chain.image_views_p, "Failed to allocate memory for image views\n");
+
         for (uint32_t i = 0; i < vk.swap_chain.image_count; i++) {
             VkImageViewCreateInfo viewInfo = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -564,27 +500,38 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
                 },
             };
 
-            if (vkCreateImageView(vk.device, &viewInfo, NULL, &vk.swap_chain.image_views_p[i]) != VK_SUCCESS) {
-                printf("Failed to create image view %u\n", i);
-                exit(-1);
-            }
+            result = vkCreateImageView(vk.device, &viewInfo, NULL, &vk.swap_chain.image_views_p[i]);
+            VERIFY(result == VK_SUCCESS, "Failed to create image view %u\n", i);
         }
     }
     // createDescriptorPool
     {
         VkDescriptorPoolCreateInfo pool_info = {
             .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .poolSizeCount = 1,
-            .pPoolSizes    = &(VkDescriptorPoolSize) {
-                .type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptorCount = 1
+            .poolSizeCount = 4,
+            .pPoolSizes    = &(VkDescriptorPoolSize[]) {
+                {
+                    .type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    .descriptorCount = 20, // Adjust based on your needs
+                },
+                {
+                    .type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = 20, // Adjust based on your needs
+                },
+                {
+                    .type            = VK_DESCRIPTOR_TYPE_SAMPLER,
+                    .descriptorCount = 20, // Adjust based on your needs
+                },
+                {
+                    .type            = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                    .descriptorCount = 20, // Adjust based on your needs
+                },
             },
-            .maxSets       = 1
+            .maxSets       = 40
         };
-        if (vkCreateDescriptorPool(vk.device, &pool_info, NULL, &vk.descriptor_pool) != VK_SUCCESS) {
-            printf("Failed to create descriptor pool\n");
-            exit(-1);
-        }
+
+        result = vkCreateDescriptorPool(vk.device, &pool_info, NULL, &vk.descriptor_pool);
+        VERIFY(result == VK_SUCCESS, "Failed to create descriptor pool\n");
     }
     // createCommandPool
     {
@@ -593,17 +540,16 @@ VK VK_create(unsigned int width, unsigned int height, const char* title) {
             .queueFamilyIndex = vk.queue_family_indices.graphics,
             .flags            = 0 // Optional flags
         };
-        if (vkCreateCommandPool(vk.device, &poolInfo, NULL, &vk.command_pool) != VK_SUCCESS) {
-            printf("Failed to create command pool\n");
-            exit(-1);
-        }
+
+        result = vkCreateCommandPool(vk.device, &poolInfo, NULL, &vk.command_pool);
+        VERIFY(result == VK_SUCCESS, "Failed to create command pool\n");
     }
 
     return vk;
 }
 
-void VK_startApp(
-    VK* vk,
+void vk_StartApp(
+    Vk* vk,
     VkSemaphore imageAvailableSemaphore,
     VkSemaphore renderFinishedSemaphore,
     VkFence inFlightFence,
@@ -628,9 +574,9 @@ void VK_startApp(
 
         // for testing
         {
-            tmp_i=ALL_INSTANCE_COUNT;
-            clearBuffer(vk, instance_buffer, 0);
-            updateBuffer(vk, instance_buffer, 0, all_instances, sizeof(InstanceData) * tmp_i);
+            //tmp_i=ALL_INSTANCE_COUNT;
+            TRACK(vk_Buffer_Clear(vk, instance_buffer, 0));
+            TRACK(vk_Buffer_Update(vk, instance_buffer, 0, all_instances, sizeof(InstanceData) * tmp_i));
             if (tmp_i==ALL_INSTANCE_COUNT) {
                 tmp_i = 0;
             }
@@ -645,30 +591,20 @@ void VK_startApp(
         ubo.targetHeight = (float)vk->swap_chain.extent.height;
 
         void* data;
-        VkResult map_result = vmaMapMemory(vk->allocator, uniformBufferAllocation, &data);
-        if (map_result != VK_SUCCESS) {
-            printf("Failed to map uniform buffer memory: %d\n", map_result);
-            running = 0;
-            continue;
-        }
-        memcpy(data, &ubo, sizeof(ubo));
-        vmaUnmapMemory(vk->allocator, uniformBufferAllocation);
-        vkWaitForFences(vk->device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
-        vkResetFences(vk->device, 1, &inFlightFence);
+        TRACK(VkResult map_result = vmaMapMemory(vk->allocator, uniformBufferAllocation, &data));
+        VERIFY(map_result == VK_SUCCESS, "Failed to map uniform buffer memory: %d\n", map_result);
+        TRACK(memcpy(data, &ubo, sizeof(ubo)));
+        TRACK(vmaUnmapMemory(vk->allocator, uniformBufferAllocation));
+        TRACK(vkWaitForFences(vk->device, 1, &inFlightFence, VK_TRUE, UINT64_MAX));
+        TRACK(vkResetFences(vk->device, 1, &inFlightFence));
 
         // Acquire the next image from the swap chain
         uint32_t image_index;
-        VkResult acquire_result = vkAcquireNextImageKHR(vk->device, vk->swap_chain.swap_chain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &image_index);
-        if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR || acquire_result == VK_SUBOPTIMAL_KHR) {
-            printf("Swapchain out of date or suboptimal. Consider recreating swapchain.\n");
-            running = 0;
-            continue;
-        }
-        else if (acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR) {
-            printf("Failed to acquire swapchain image: %d\n", acquire_result);
-            running = 0;
-            continue;
-        }
+        TRACK(VkResult acquire_result = vkAcquireNextImageKHR(vk->device, vk->swap_chain.swap_chain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &image_index));
+        VERIFY(!(acquire_result == VK_ERROR_OUT_OF_DATE_KHR || acquire_result == VK_SUBOPTIMAL_KHR),
+            "Swapchain out of date or suboptimal. Consider recreating swapchain.\n");
+        VERIFY(!(acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR), 
+            "Failed to acquire swapchain image: %d\n", acquire_result);
 
         // Submit the command buffer
         VkSubmitInfo submit_info = {
@@ -681,12 +617,8 @@ void VK_startApp(
             .signalSemaphoreCount = 1,
             .pSignalSemaphores    = (VkSemaphore[]){ renderFinishedSemaphore }
         };
-        VkResult submit_result = vkQueueSubmit(vk->queues.graphics, 1, &submit_info, inFlightFence);
-        if (submit_result != VK_SUCCESS) {
-            printf("Failed to submit draw command buffer: %d\n", submit_result);
-            running = 0;
-            continue;
-        }
+        TRACK(VkResult submit_result = vkQueueSubmit(vk->queues.graphics, 1, &submit_info, inFlightFence));
+        VERIFY(submit_result == VK_SUCCESS, "Failed to submit draw command buffer: %d\n", submit_result);
 
         // Present the image
         VkPresentInfoKHR present_info = {
@@ -698,26 +630,20 @@ void VK_startApp(
             .pImageIndices      = &image_index  
         };
 
-        VkResult present_result = vkQueuePresentKHR(vk->queues.present, &present_info);
-        if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
-            printf("Swapchain out of date or suboptimal during present. Consider recreating swapchain.\n");
-            running = 0;
-            continue;
-        }
-        else if (present_result != VK_SUCCESS) {
-            printf("Failed to present swapchain image: %d\n", present_result);
-            running = 0;
-            continue;
-        }
+        TRACK(VkResult present_result = vkQueuePresentKHR(vk->queues.present, &present_info));
+        VERIFY(!(present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR), 
+            "Swapchain out of date or suboptimal during present. Consider recreating swapchain.\n");
+        VERIFY(present_result == VK_SUCCESS,
+            "Failed to present swapchain image: %d\n", present_result);
 
         // Optionally wait for the present queue to be idle
-        vkQueueWaitIdle(vk->queues.present);
+        TRACK(vkQueueWaitIdle(vk->queues.present));
         //usleep(100000);
     }
 }
 
-void VK_destroy(
-    VK* p_vk,
+void vk_Destroy(
+    Vk* p_vk,
     VkPipeline graphicsPipeline,
     VkPipelineLayout pipelineLayout,
     VkDescriptorSetLayout descriptorSetLayout,

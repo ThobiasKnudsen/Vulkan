@@ -1,6 +1,6 @@
-// vulkan_gui.h
-#ifndef VULKAN_GUI_H
-#define VULKAN_GUI_H
+#pragma once
+
+// Λόγος
 
 #include <vulkan/vulkan.h>
 #include <shaderc/shaderc.h>
@@ -63,6 +63,16 @@ typedef struct {
 } Buffer;
 
 typedef struct {
+    VkImage image;
+    VkImageLayout layout;
+    VkExtent2D extent;
+    VkFormat format;
+    VmaAllocation allocation;
+    VkImageView image_view;
+    VkSampler sampler;
+} Image;
+
+typedef struct {
 
     shaderc_compiler_t          shaderc_compiler;
     shaderc_compile_options_t   shaderc_options;
@@ -81,58 +91,60 @@ typedef struct {
     struct {
         VkSwapchainKHR          swap_chain;
         VkFormat                image_format;
-        unsigned int            image_count;
+        size_t                  image_count;
         VkExtent2D              extent;
         VkImage*                images_p;
         VkImageView*            image_views_p;
     }                           swap_chain;
-
-
-} VK;
+} Vk;
 
 // bedrock
-VK                          VK_create(unsigned int width, unsigned int height, const char* title);
-void                        VK_startApp(VK* p_vk,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence,VkCommandBuffer* commandBuffers,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation,Buffer instance_buffer);
-void                        VK_destroy(VK* p_vk,VkPipeline graphicsPipeline,VkPipelineLayout pipelineLayout,VkDescriptorSetLayout descriptorSetLayout,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation,VkBuffer instanceBuffer,VmaAllocation instanceBufferAllocation,VkDescriptorSet descriptorSet,VkCommandBuffer* commandBuffers,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence);
+Vk                          vk_Create(unsigned int width, unsigned int height, const char* title);
+void                        vk_StartApp(Vk* p_vk,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence,VkCommandBuffer* commandBuffers,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation,Buffer instance_buffer);
+void                        vk_Destroy(Vk* p_vk,VkPipeline graphicsPipeline,VkPipelineLayout pipelineLayout,VkDescriptorSetLayout descriptorSetLayout,VkBuffer uniformBuffer,VmaAllocation uniformBufferAllocation,VkBuffer instanceBuffer,VmaAllocation instanceBufferAllocation,VkDescriptorSet descriptorSet,VkCommandBuffer* commandBuffers,VkSemaphore imageAvailableSemaphore,VkSemaphore renderFinishedSemaphore,VkFence inFlightFence);
 
 // buffer
-Buffer                      createBuffer( VK* p_vk, VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage );
-void                        clearBuffer( VK* p_vk, Buffer buffer, int clear_value) ;
-void                        updateBuffer( VK* p_vk, Buffer buffer, VkDeviceSize dst_offset, const void* p_src_data, VkDeviceSize size );
+Buffer                      vk_Buffer_Create( Vk* p_vk, VkDeviceSize size, VkBufferUsageFlags usage );
+void                        vk_Buffer_Clear( Vk* p_vk, Buffer buffer, int clear_value) ;
+void                        vk_Buffer_Update( Vk* p_vk, Buffer buffer, VkDeviceSize dst_offset, const void* p_src_data, VkDeviceSize size );
 
 // image
-VkImage                     createImage( VK* p_vk );
-VkImageView                 createImageView( VK* p_vk );
-VkSampler                   createImageSampler( VK* p_vk );
-VkImage                     loadImageFromFile( VK* p_vk, const char* filename );
-VkImage                     createImageAtlas( VK* p_vk, const char** filenames, uint32_t imageCount );
-void                        copyBufferToImage( VK* p_vk, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height );
-void                        transitionImageLayout( VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout );
-void                        destroyImage( VkDevice device, VkImage* vulkanImage );
+Image                       vk_Image_Create_ReadWrite( Vk* p_vk,  VkExtent2D extent,  VkFormat format );
+Image                       vk_Image_CreateFromImageFile( Vk* p_vk, const char* filename, VkFormat format, VkImageLayout layout );
+Image                       vk_Image_LoadFromFile( Vk* p_vk, const char* filename );
+Image                       vk_Image_CreateAtlas( Vk* p_vk, const char** filenames, uint32_t imageCount );
+void                        vk_Image_CopyData( Vk* p_vk, Image* p_image, VkImageLayout final_layout, const void* p_data, const VkRect2D rect, const size_t pixel_size );
+void                        vk_Image_TransitionLayout(VkCommandBuffer command_buffer, Image* p_image, VkImageLayout new_layout);
+void                        vk_Image_Destroy( VkDevice device, VkImage* vulkanImage );
 
 // shader
-size_t                      readFile(const char* filename, char** dst_buffer);
-SpvShader                   createSpvShader(VK* p_vk, const char* p_glsl_code, size_t glsl_size, const char* glsl_filename, shaderc_shader_kind kind);
-SpvReflectShaderModule      createSpvReflectShaderModule(SpvShader spv_shader);
-VkShaderModule              createShaderModule(VK* p_vk, SpvShader spv_shader);
-VkShaderModule              createShaderModuleFromGlslFile(VK* p_vk, const char* filename, shaderc_shader_kind shader_kind);
+size_t                              readFile(const char* filename, char** dst_buffer);
+SpvShader                           vk_SpvShader_Create(Vk* p_vk, const char* p_glsl_code, size_t glsl_size, const char* glsl_filename, shaderc_shader_kind kind);
+SpvShader                           vk_SpvShader_CreateFromGlslFile(Vk* p_vk, const char* filename, shaderc_shader_kind shader_kind);
+void                                vk_SpvShader_CreateSpvFileFromGlslFile(Vk* p_vk, const char* glsl_filename, const char* spv_filename, shaderc_shader_kind shader_kind);
+SpvReflectShaderModule              vk_SpvReflectShaderModule_Create(SpvShader spv_shader);
+VkShaderModule                      vk_ShaderModule_Create(Vk* p_vk, SpvShader spv_shader);
+VkShaderModule                      vk_ShaderModule_CreateFromGlslFile(Vk* p_vk, const char* filename, shaderc_shader_kind shader_kind);
+VkVertexInputAttributeDescription*  vk_VertexInputAttributeDescriptions_CreateFromVertexShader( SpvShader spv_shader, uint32_t* p_attribute_count, uint32_t* p_binding_stride );
 
 // descriptor
-VkDescriptorSetLayout       createDescriptorSetLayout_0(VK* p_vk);
-VkDescriptorSet             createDescriptorSet( VK* p_vk, VkDescriptorSetLayout desc_set_layout, VkBuffer buffer );
+VkDescriptorSetLayoutCreateInfo*    vk_DescriptorSetLayoutCreateInfo_Create( Vk* p_vk, const SpvReflectShaderModule* p_shader_modules, unsigned int shader_modules_count, size_t* p_desc_set_layout_count ); 
+void                                vk_DescriptorSetLayoutCreateInfo_Print(const VkDescriptorSetLayoutCreateInfo* p_create_info, const size_t create_info_count);
+VkDescriptorSetLayout*              vk_DescriptorSetLayout_Create(Vk* p_vk, const VkDescriptorSetLayoutCreateInfo* p_create_info, const size_t create_info_count);
+VkDescriptorSetLayout               vk_DescriptorSetLayout_Create_0(Vk* p_vk);
+VkDescriptorSet*                    vk_DescriptorSet_Create(Vk* p_vk, const VkDescriptorSetLayout* p_desc_set_layout, size_t desc_set_layouts_count, VkBuffer buffer, Image* p_image);
 
 // pipeline
-VkPipelineLayout            createPipelineLayout(VkDevice device, VkDescriptorSetLayout* p_set_layouts, size_t set_layout_count);
-VkPipeline                  createGraphicsPipeline(VK* p_vk, VkPipelineLayout pipelineLayout);
+VkPipelineLayout            vk_PipelineLayout_Create(VkDevice device, VkDescriptorSetLayout* p_set_layouts, size_t set_layout_count);
+VkPipeline                  vk_Pipeline_Graphics_Create(Vk* p_vk, VkPipelineLayout pipelineLayout);
 
 // command buffer
-VkCommandBuffer*            createCommandBuffersForSwapchain(VK* p_vk, VkDescriptorSet desc_set, VkPipeline graphics_pipeline,VkPipelineLayout graphics_pipeline_layout,VkBuffer instance_buffer);
+VkCommandBuffer*            vk_CommandBuffer_CreateForSwapchain(Vk* p_vk, VkDescriptorSet* p_desc_set, size_t desc_set_count, VkPipeline graphics_pipeline,VkPipelineLayout graphics_pipeline_layout,VkBuffer instance_buffer, Image* p_image);
+VkCommandBuffer             vk_CommandBuffer_CreateAndBeginSingleTimeUsage(Vk* p_vk);
+void                        vk_CommandBuffer_EndAndDestroySingleTimeUsage(Vk* p_vk, VkCommandBuffer command_buffer);
+VkCommandBuffer             vk_CommandBuffer_CreateWithImageAttachment( Vk* p_vk, Image* p_image, VkDescriptorSet* p_desc_set, size_t desc_set_count, VkPipeline graphics_pipeline, VkPipelineLayout graphics_pipeline_layout, VkBuffer instance_buffer, uint32_t vertex_count, uint32_t instance_count); 
+void                        vk_CommandBuffer_Submit(Vk* p_vk, VkCommandBuffer command_buffer);
 
 // synchronization
-VkSemaphore                 createSemaphore(VkDevice device);
-VkFence                     createFence(VkDevice device);
-
-
-void                        test();
-
-#endif // VULKAN_GUI_H
+VkSemaphore                 vk_Semaphore_Create(VkDevice device);
+VkFence                     vk_Fence_Create(VkDevice device);
