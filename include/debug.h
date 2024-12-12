@@ -20,7 +20,7 @@ void DebugPrintMemory();
 #define free(ptr)          DebugFree   (ptr, __LINE__, __FILE__)
 #define debug(code)        DebugStart(__LINE__, __FILE__); code; DebugEnd();
 #define TRACK(code)        DebugStart(__LINE__, __FILE__); code; DebugEnd();
-#define printf(fmt, ...)   do {char buffer[512]; snprintf(buffer, sizeof(buffer), fmt, ##__VA_ARGS__); DebugPrintf(buffer, __LINE__, __FILE__); } while (0)
+#define printf(fmt, ...)   do {char buffer[2048]; snprintf(buffer, sizeof(buffer), fmt, ##__VA_ARGS__); DebugPrintf(buffer, __LINE__, __FILE__); } while (0)
 #define VERIFY(expr, fmt, ...) \
     do { \
         if (!(expr)) { \

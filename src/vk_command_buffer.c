@@ -23,6 +23,12 @@ VkCommandBuffer* vk_CommandBuffer_CreateForSwapchain(
     TRACK( VkResult result = vkAllocateCommandBuffers( p_vk->device, &alloc_info, command_buffers ) );
     VERIFY( result == VK_SUCCESS, "Failed to allocate command buffers\n" );
 
+    for (unsigned int i = 0; i < p_vk->swap_chain.image_count; ++i) {
+        if (p_image->layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+            TRACK( vk_Image_TransitionLayout( command_buffers[i], p_image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL ) );
+        }
+    }
+
     for (uint32_t i = 0; i < p_vk->swap_chain.image_count; i++) {
 
         VkCommandBufferBeginInfo begin_info = {0};
@@ -50,9 +56,6 @@ VkCommandBuffer* vk_CommandBuffer_CreateForSwapchain(
         };
 
         TRACK( vkCmdPipelineBarrier( command_buffers[i], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &barrier_to_color_attachment ) );
-        if (p_image->layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-            TRACK( vk_Image_TransitionLayout( command_buffers[i], p_image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL ) );
-        }
 
         VkRenderingInfo rendering_info = {
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -68,7 +71,7 @@ VkCommandBuffer* vk_CommandBuffer_CreateForSwapchain(
                 .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .clearValue = { .color = {0.2f, 0.0f, 0.0f, 1.0f} },
+                .clearValue = { .color = {0.0f, 0.0f, 0.0f, 1.0f} },
             },
         };
             
@@ -77,6 +80,7 @@ VkCommandBuffer* vk_CommandBuffer_CreateForSwapchain(
         TRACK( vkCmdBindDescriptorSets( command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_layout, 0, desc_set_count, p_desc_set, 0, NULL ) );
         TRACK( vkCmdBindVertexBuffers( command_buffers[i], 0, 1, (VkBuffer[]){instance_buffer}, (VkDeviceSize[]){0} ) );
         TRACK( vkCmdDraw( command_buffers[i], 4, INDICES_COUNT, 0, 0 ) );
+        // vkCmdDrawIndirect
         TRACK( vkCmdEndRendering( command_buffers[i] ) );
 
         VkImageMemoryBarrier barrier_to_present = {
@@ -103,6 +107,7 @@ VkCommandBuffer* vk_CommandBuffer_CreateForSwapchain(
 
     return command_buffers;
 }
+
 
 VkCommandBuffer vk_CommandBuffer_CreateAndBeginSingleTimeUsage(Vk* p_vk) {
     VkCommandBufferAllocateInfo alloc_info = {

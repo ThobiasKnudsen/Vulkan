@@ -100,8 +100,12 @@ void vk_DescriptorSetLayoutCreateInfo_Print(const VkDescriptorSetLayoutCreateInf
 }
 VkDescriptorSetLayout* vk_DescriptorSetLayout_Create(Vk* p_vk, const VkDescriptorSetLayoutCreateInfo* p_create_info, const size_t create_info_count) {
 
-    VERIFY(p_vk, "NULL pointer");
-    VERIFY(p_create_info, "NULL pointer");
+    VERIFY(p_vk, "p_vk is NULL pointer");
+    if (!p_create_info && create_info_count==0) {
+        return NULL;
+    }
+    VERIFY(p_create_info, "p_create_info is NULL pointer");
+    VERIFY(create_info_count > 0, "create_info_count is 0 even though p_create_info is not NULL");
 
     TRACK(VkDescriptorSetLayout* p_set_layout = alloc(NULL, create_info_count*sizeof(VkDescriptorSetLayout)));
     memset(p_set_layout, 0, create_info_count*sizeof(VkDescriptorSetLayout));
@@ -130,7 +134,32 @@ VkDescriptorSetLayout vk_DescriptorSetLayout_Create_0(Vk* p_vk) {
 
     return descriptorSetLayout;
 }
-VkDescriptorSet* vk_DescriptorSet_Create(Vk* p_vk, const VkDescriptorSetLayout* p_desc_set_layout, size_t desc_set_layouts_count, VkBuffer buffer, Image* p_image) {
+VkDescriptorSet* vk_DescriptorSet_Create(Vk* p_vk, const VkDescriptorSetLayout* p_desc_set_layout, size_t desc_set_layouts_count) {
+    
+    VERIFY(p_vk, "NULL pointer");
+    if (!p_desc_set_layout && desc_set_layouts_count==0) {
+        return NULL;
+    }
+    VERIFY(p_desc_set_layout, "NULL pointer");
+    VERIFY(desc_set_layouts_count > 0, "uhhhh");
+    TRACK(VkDescriptorSet* p_desc_sets = alloc(NULL, desc_set_layouts_count * sizeof(VkDescriptorSet)));
+    VERIFY(p_desc_sets, "Descriptor sets allocation failed");
+
+    for (size_t set = 0; set < desc_set_layouts_count; ++set) {
+        printf("set %d\n", set);
+        VkDescriptorSetAllocateInfo alloc_info = {
+            .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool     = p_vk->descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts        = &p_desc_set_layout[set]
+        };
+        TRACK(VkResult result = vkAllocateDescriptorSets(p_vk->device, &alloc_info, &p_desc_sets[set]));
+        VERIFY(result == VK_SUCCESS, "Failed to allocate descriptor set. result = %d", result);
+    }
+
+    return p_desc_sets;
+}
+VkDescriptorSet* vk_DescriptorSet_Create_0(Vk* p_vk, const VkDescriptorSetLayout* p_desc_set_layout, size_t desc_set_layouts_count, VkBuffer buffer, Image* p_image) {
     
     VERIFY(p_vk, "NULL pointer");
     VERIFY(p_desc_set_layout, "NULL pointer");
