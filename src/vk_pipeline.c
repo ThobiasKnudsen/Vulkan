@@ -34,7 +34,7 @@ VkPipeline vk_Pipeline_Graphics_Create(
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
             .pNext = NULL,
             .colorAttachmentCount = 1,
-            .pColorAttachmentFormats = &p_vk->swap_chain.image_format,
+            .pColorAttachmentFormats = &p_vk->p_images[0].format,
         },
         .stageCount          = 2,
         .pStages             = (VkPipelineShaderStageCreateInfo[2]) {{
@@ -70,15 +70,15 @@ VkPipeline vk_Pipeline_Graphics_Create(
             .pViewports    = &(VkViewport) {
                 .x        = 0.0f,
                 .y        = 0.0f,
-                .width    = (float)p_vk->swap_chain.extent.width,
-                .height   = (float)p_vk->swap_chain.extent.height,
+                .width    = (float)p_vk->p_images[0].extent.width,
+                .height   = (float)p_vk->p_images[0].extent.height,
                 .minDepth = 0.0f,
                 .maxDepth = 1.0f
             },
             .scissorCount  = 1,
             .pScissors     = &(VkRect2D) {
                 .offset = (VkOffset2D){0, 0},
-                .extent = p_vk->swap_chain.extent
+                .extent = p_vk->p_images[0].extent
             }
         },
         .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {

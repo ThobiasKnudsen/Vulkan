@@ -21,7 +21,7 @@ void* alloc(void* ptr, size_t size);
 // Structures
 
 typedef struct {
-    const uint32_t* code;
+    const unsigned int* code;
     size_t          size;
 } SpvShader;
 
@@ -30,8 +30,8 @@ typedef struct {
     float size[2];       // width, height
     float rotation;      // rotation angle
     float corner_radius; // pixels
-    uint32_t color;      // background color packed as RGBA8
-    uint32_t tex_index;  // texture ID and other info
+    unsigned int color;      // background color packed as RGBA8
+    unsigned int tex_index;  // texture ID and other info
     float tex_rect[4];   // texture rectangle (u, v, width, height)
 } InstanceData;
 
@@ -43,10 +43,10 @@ typedef struct {
 } UniformBufferObject;
 
 typedef struct {
-    uint32_t graphics;
-    uint32_t present;
-    uint32_t compute;
-    uint32_t transfer;
+    unsigned int graphics;
+    unsigned int present;
+    unsigned int compute;
+    unsigned int transfer;
 } VkQueueFamilyIndices;
 
 typedef struct {
@@ -69,7 +69,7 @@ typedef struct {
     VkExtent2D extent;
     VkFormat format;
     VmaAllocation allocation;
-    VkImageView image_view;
+    VkImageView view;
     VkSampler sampler;
 } Image;
 
@@ -88,15 +88,9 @@ typedef struct {
     VkCommandPool               command_pool;
     VkDescriptorPool            descriptor_pool;
     VmaAllocator                allocator;
-
-    struct {
-        VkSwapchainKHR          swap_chain;
-        VkFormat                image_format;
-        size_t                  image_count;
-        VkExtent2D              extent;
-        VkImage*                images_p;
-        VkImageView*            image_views_p;
-    }                           swap_chain;
+    VkSwapchainKHR              swap_chain;
+    Image*                      p_images;
+    size_t                      images_count;
 
 } Vk;
 
@@ -109,6 +103,7 @@ typedef struct {
 } Gui_Shader;
 
 typedef struct {
+
     Vk*                                 p_vk; 
     Gui_Shader*                         p_shaders;
     size_t                              shaders_count;
@@ -118,23 +113,24 @@ typedef struct {
     VkPipelineLayout                    pipeline_layout;
     VkPipeline                          graphics_pipeline;
 
-} Gui_GraphicsPipeline;
+} Vk_GraphicsPipeline;
 
 typedef struct {
 
     Vk*                     p_vk;  
-    Gui_GraphicsPipeline*   p_pipeline;
+    Vk_GraphicsPipeline*    p_pipeline;
     Image*                  p_target_image;
 
     VkDescriptorSet*        p_desc_sets;
     size_t                  desc_sets_count;
 
     VkCommandBuffer         command_buffer;
+    bool                    command_buffer_needs_recording;
 
     Buffer                  indirect_buffer; // containing VkDrawIndirectCommand
     Buffer                  instance_buffer; // containing InstanceData array
 
-} Gui_Rendering;
+} Vk_Rendering;
 
 // bedrock
 Vk                          vk_Create(unsigned int width, unsigned int height, const char* title);
@@ -150,9 +146,10 @@ void                        vk_Buffer_Update( Vk* p_vk, Buffer buffer, VkDeviceS
 Image                       vk_Image_Create_ReadWrite( Vk* p_vk,  VkExtent2D extent,  VkFormat format );
 Image                       vk_Image_CreateFromImageFile( Vk* p_vk, const char* filename, VkFormat format, VkImageLayout layout );
 Image                       vk_Image_LoadFromFile( Vk* p_vk, const char* filename );
-Image                       vk_Image_CreateAtlas( Vk* p_vk, const char** filenames, uint32_t imageCount );
+Image                       vk_Image_CreateAtlas( Vk* p_vk, const char** filenames, unsigned int imageCount );
 void                        vk_Image_CopyData( Vk* p_vk, Image* p_image, VkImageLayout final_layout, const void* p_data, const VkRect2D rect, const size_t pixel_size );
 void                        vk_Image_TransitionLayout(VkCommandBuffer command_buffer, Image* p_image, VkImageLayout new_layout);
+void                        vk_Image_TransitionLayoutWithoutCommandBuffer(Vk* p_vk, Image* p_image, VkImageLayout new_layout);
 void                        vk_Image_TransitionLayout_0(VkCommandBuffer command_buffer, VkImage* p_image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 void                        vk_Image_Destroy( VkDevice device, VkImage* vulkanImage );
 
@@ -164,7 +161,7 @@ void                                vk_SpvShader_CreateSpvFileFromGlslFile(Vk* p
 SpvReflectShaderModule              vk_SpvReflectShaderModule_Create(SpvShader spv_shader);
 VkShaderModule                      vk_ShaderModule_Create(Vk* p_vk, SpvShader spv_shader);
 VkShaderModule                      vk_ShaderModule_CreateFromGlslFile(Vk* p_vk, const char* filename, shaderc_shader_kind shader_kind);
-VkVertexInputAttributeDescription*  vk_VertexInputAttributeDescriptions_CreateFromVertexShader( SpvShader spv_shader, uint32_t* p_attribute_count, uint32_t* p_binding_stride );
+VkVertexInputAttributeDescription*  vk_VertexInputAttributeDescriptions_CreateFromVertexShader( SpvShader spv_shader, unsigned int* p_attribute_count, unsigned int* p_binding_stride );
 
 // descriptor
 VkDescriptorSetLayoutCreateInfo*    vk_DescriptorSetLayoutCreateInfo_Create( Vk* p_vk, const SpvReflectShaderModule* p_shader_modules, unsigned int shader_modules_count, size_t* p_desc_set_layout_count ); 
@@ -180,10 +177,10 @@ VkPipeline                  vk_Pipeline_Graphics_Create(Vk* p_vk, VkPipelineLayo
 
 // command buffer
 VkCommandBuffer*            vk_CommandBuffer_CreateForSwapchain(Vk* p_vk, VkDescriptorSet* p_desc_set, size_t desc_set_count, VkPipeline graphics_pipeline,VkPipelineLayout graphics_pipeline_layout,VkBuffer instance_buffer, Image* p_image);
-VkCommandBuffer*            vk_CommandBuffer_CreateForSwapchain_0( Vk* p_vk, Gui_Rendering* p_rendering, VkBuffer instance_buffer, size_t instance_count, Image* p_image);
+VkCommandBuffer*            vk_CommandBuffer_CreateForSwapchain_0( Vk* p_vk, Vk_Rendering* p_rendering, VkBuffer instance_buffer, size_t instance_count, Image* p_image);
 VkCommandBuffer             vk_CommandBuffer_CreateAndBeginSingleTimeUsage(Vk* p_vk);
 void                        vk_CommandBuffer_EndAndDestroySingleTimeUsage(Vk* p_vk, VkCommandBuffer command_buffer);
-VkCommandBuffer             vk_CommandBuffer_CreateWithImageAttachment( Vk* p_vk, Image* p_image, VkDescriptorSet* p_desc_set, size_t desc_set_count, VkPipeline graphics_pipeline, VkPipelineLayout graphics_pipeline_layout, VkBuffer instance_buffer, uint32_t vertex_count, uint32_t instance_count); 
+VkCommandBuffer             vk_CommandBuffer_CreateWithImageAttachment( Vk* p_vk, Image* p_image, VkDescriptorSet* p_desc_set, size_t desc_set_count, VkPipeline graphics_pipeline, VkPipelineLayout graphics_pipeline_layout, VkBuffer instance_buffer, unsigned int vertex_count, unsigned int instance_count); 
 void                        vk_CommandBuffer_Submit(Vk* p_vk, VkCommandBuffer command_buffer);
 
 // synchronization
@@ -191,18 +188,23 @@ VkSemaphore                 vk_Semaphore_Create(VkDevice device);
 VkFence                     vk_Fence_Create(VkDevice device);
 
 // gui_graphics_pipeline 
-Gui_GraphicsPipeline        Gui_GraphicsPipeline_Initialize(Vk* p_vk);
-void                        Gui_GraphicsPipeline_AddShader(Gui_GraphicsPipeline* p_pipeline, SpvShader spv_shader, shaderc_shader_kind shader_kind);
-void                        Gui_GraphicsPipeline_CreatePipeline(Gui_GraphicsPipeline* p_pipeline);
+Vk_GraphicsPipeline        Vk_GraphicsPipeline_Initialize(Vk* p_vk);
+void                        Vk_GraphicsPipeline_AddShader(Vk_GraphicsPipeline* p_pipeline, SpvShader spv_shader, shaderc_shader_kind shader_kind);
+void                        Vk_GraphicsPipeline_CreatePipeline(Vk_GraphicsPipeline* p_pipeline, VkFormat format);
+void                        Vk_GraphicsPipeline_CreatePipeline_0(Vk_GraphicsPipeline* p_pipeline, VkFormat format);
 
 // gui_rendering
-Gui_Rendering               Gui_Rendering_Create(Gui_GraphicsPipeline* p_pipeline, Image* p_target_image);
-void                        Gui_Rendering_SetTargetImage(Gui_Rendering* p_rendering, Image* p_target_image);
-void                        Gui_Rendering_UpdateInstanceBuffer(Gui_Rendering* p_rendering, size_t dst_offset, void* p_src_data, size_t src_data_size);
-void                        Gui_Rendering_UpdateIndirectBuffer(Gui_Rendering* p_rendering, uint32_t instance_count, uint32_t first_instance);
+Vk_Rendering               Vk_Rendering_Create();
+void                        Vk_Rendering_SetGraphicsPipeline(Vk_Rendering* p_rendering, Vk_GraphicsPipeline* p_pipeline, VkBuffer buffer, Image* p_image);
+void                        Vk_Rendering_SetTargetImage(Vk_Rendering* p_rendering, Image* p_target_image);
+void                        Vk_Rendering_UpdateInstanceBuffer(Vk_Rendering* p_rendering, size_t dst_offset, void* p_src_data, size_t size);
+void                        Vk_Rendering_UpdateInstanceBufferWithBuffer(Vk_Rendering* p_rendering, size_t dst_offset, Buffer src_buffer, size_t src_offset, size_t size);
+void                        Vk_Rendering_UpdateInstanceDrawRange(Vk_Rendering* p_rendering, unsigned int first_instance, unsigned int instance_count);
+void                        Vk_Rendering_RecordCommandBuffer(Vk_Rendering* p_rendering);
+void                        Vk_Rendering_RecordCommandBuffer_0(Vk_Rendering* p_rendering);
 
-void                        Gui_Rendering_UpdateUniformBuffer(Gui_Rendering* p_rendering, Gui_GraphicsPipeline* p_pipeline, unsigned int set, unsigned int binding, unsigned int array_element, VkBuffer buffer, unsigned int offset, unsigned int range);
-void                        Gui_Rendering_UpdateCombinedImageSampler(Gui_Rendering* p_rendering, Gui_GraphicsPipeline* p_pipeline, unsigned int set, unsigned int binding, unsigned int array_element, VkSampler sampler, VkImageView image_view, VkImageLayout image_layout);
-void                        Gui_Rendering_UpdateSampledImage(Gui_Rendering* p_rendering, Gui_GraphicsPipeline* p_pipeline, unsigned int set, unsigned int binding, unsigned int array_element, VkImageView image_view, VkImageLayout image_layout);
-void                        Gui_Rendering_UpdateStorageImage(Gui_Rendering* p_rendering, Gui_GraphicsPipeline* p_pipeline, unsigned int set, unsigned int binding, unsigned int array_element, VkImageView image_view, VkImageLayout image_layout);
-void                        Gui_Rendering_UpdateStorageBuffer(Gui_Rendering* p_rendering, Gui_GraphicsPipeline* p_pipeline, unsigned int set, unsigned int binding, unsigned int array_element, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);
+void                        Vk_Rendering_UpdateUniformBuffer(Vk_Rendering* p_rendering, unsigned int set, unsigned int binding, unsigned int array_element, VkBuffer buffer, unsigned int offset, unsigned int range);
+void                        Vk_Rendering_UpdateCombinedImageSampler(Vk_Rendering* p_rendering, unsigned int set, unsigned int binding, unsigned int array_element, Image* p_image);
+void                        Vk_Rendering_UpdateSampledImage(Vk_Rendering* p_rendering, unsigned int set, unsigned int binding, unsigned int array_element, VkImageView image_view, VkImageLayout image_layout);
+void                        Vk_Rendering_UpdateStorageImage(Vk_Rendering* p_rendering, unsigned int set, unsigned int binding, unsigned int array_element, VkImageView image_view, VkImageLayout image_layout);
+void                        Vk_Rendering_UpdateStorageBuffer(Vk_Rendering* p_rendering, unsigned int set, unsigned int binding, unsigned int array_element, VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range);

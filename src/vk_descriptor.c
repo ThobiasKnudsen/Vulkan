@@ -137,22 +137,28 @@ VkDescriptorSetLayout vk_DescriptorSetLayout_Create_0(Vk* p_vk) {
 VkDescriptorSet* vk_DescriptorSet_Create(Vk* p_vk, const VkDescriptorSetLayout* p_desc_set_layout, size_t desc_set_layouts_count) {
     
     VERIFY(p_vk, "NULL pointer");
-    if (!p_desc_set_layout && desc_set_layouts_count==0) {
+    if (!p_desc_set_layout && desc_set_layouts_count == 0) {
+        printf("!p_desc_set_layout && desc_set_layouts_count == 0\n");
         return NULL;
     }
     VERIFY(p_desc_set_layout, "NULL pointer");
     VERIFY(desc_set_layouts_count > 0, "uhhhh");
+    
     TRACK(VkDescriptorSet* p_desc_sets = alloc(NULL, desc_set_layouts_count * sizeof(VkDescriptorSet)));
     VERIFY(p_desc_sets, "Descriptor sets allocation failed");
 
     for (size_t set = 0; set < desc_set_layouts_count; ++set) {
-        printf("set %d\n", set);
+        printf("set %zu\n", set);  // Note: Use %zu for size_t
         VkDescriptorSetAllocateInfo alloc_info = {
             .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool     = p_vk->descriptor_pool,
             .descriptorSetCount = 1,
             .pSetLayouts        = &p_desc_set_layout[set]
         };
+        
+        // Check if the layout is valid before allocation
+        VERIFY(p_desc_set_layout[set] != VK_NULL_HANDLE, "Invalid VkDescriptorSetLayout handle for set %zu", set);
+        
         TRACK(VkResult result = vkAllocateDescriptorSets(p_vk->device, &alloc_info, &p_desc_sets[set]));
         VERIFY(result == VK_SUCCESS, "Failed to allocate descriptor set. result = %d", result);
     }
@@ -164,7 +170,7 @@ VkDescriptorSet* vk_DescriptorSet_Create_0(Vk* p_vk, const VkDescriptorSetLayout
     VERIFY(p_vk, "NULL pointer");
     VERIFY(p_desc_set_layout, "NULL pointer");
     VERIFY(p_image, "NULL pointer");
-    VERIFY(p_image->image_view != VK_NULL_HANDLE, "image view is VK_NULL_HANDLE");
+    VERIFY(p_image->view != VK_NULL_HANDLE, "image view is VK_NULL_HANDLE");
     VERIFY(p_image->sampler != VK_NULL_HANDLE, "sampler is VK_NULL_HANDLE");
     VERIFY(desc_set_layouts_count == 2, "uhhhh");
     TRACK(VkDescriptorSet* p_desc_sets = alloc(NULL, desc_set_layouts_count * sizeof(VkDescriptorSet)));
@@ -207,7 +213,7 @@ VkDescriptorSet* vk_DescriptorSet_Create_0(Vk* p_vk, const VkDescriptorSetLayout
         .descriptorCount    = 1,
         .pImageInfo         = &(VkDescriptorImageInfo){
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .imageView   = p_image->image_view,
+            .imageView   = p_image->view,
             .sampler     = p_image->sampler,
         },
     };

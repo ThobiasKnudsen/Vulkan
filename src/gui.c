@@ -1,3 +1,4 @@
+/*
 #include "gui.h"
 
 typedef enum {
@@ -58,3 +59,4 @@ typedef struct {
     Gui_Image*      p_image_target;
     Gui_Group*      p_group;
 } Gui_Rendering;
+*/

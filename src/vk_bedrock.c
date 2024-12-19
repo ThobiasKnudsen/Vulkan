@@ -42,16 +42,16 @@ const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
         .rotation = 60.0f,
         .corner_radius = 10.0f,
         .color = 0xFFFF00FF, // Blue color in RGBA8
-        .tex_index = 1,
+        .tex_index = 0,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
     // Instance 3
     {
-        .pos = {300.0f, 300.0f},
-        .size = {100.0f, 100.0f},
+        .pos = {200.0f, 200.0f},
+        .size = {200.0f, 200.0f},
         .rotation = 90.0f,
         .corner_radius = 10.0f,
-        .color = 0xFFFFFFFF, // Cyan color in RGBA8
+        .color = 0xFFFF00FF, // Cyan color in RGBA8
         .tex_index = 1,
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
@@ -66,7 +66,7 @@ const InstanceData all_instances[ALL_INSTANCE_COUNT] = {
         .tex_rect = {0.0f, 0.0f, 1.0f, 1.0f}
     },
 };
-uint32_t indices[INDICES_COUNT] = { 0, 1, 2, 3, 4 };
+unsigned int indices[INDICES_COUNT] = { 0, 1, 2, 3, 4 };
 
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -82,16 +82,13 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
     Vk vk;
     memset(&vk, 0, sizeof(Vk));
-    vk.window_p                     = NULL;
-    vk.swap_chain.images_p          = NULL;
-    vk.swap_chain.image_views_p     = NULL;
 
     VkResult result;
 
     // Query the highest supported Vulkan version by the loader
-    uint32_t loader_version = 0;
+    unsigned int loader_version = 0;
     if (vkEnumerateInstanceVersion != NULL) {
-        vkEnumerateInstanceVersion(&loader_version);
+        TRACK(vkEnumerateInstanceVersion(&loader_version));
     } else {
         // If not available, assume at least Vulkan 1.0
         loader_version = VK_API_VERSION_1_0;
@@ -103,7 +100,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
            VK_VERSION_PATCH(loader_version));
 
     // Desired API version (we want Vulkan 1.3)
-    uint32_t desired_version = VK_API_VERSION_1_3;
+    unsigned int desired_version = VK_API_VERSION_1_3;
     if (loader_version < desired_version) {
         printf("Warning: Loader does not support Vulkan 1.3, will use lower version.\n");
         desired_version = loader_version;
@@ -126,12 +123,12 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
     }
     // createVulkanInstance
     {
-        uint32_t totalExtensionCount = 1;
+        unsigned int totalExtensionCount = 1;
         const char** allExtensions = NULL;
-        uint32_t validationLayerCount = 0;
+        unsigned int validationLayerCount = 0;
         const char* validationLayers[] = { "VK_LAYER_KHRONOS_validation" };
 
-        uint32_t sdlExtensionCount = 0;
+        unsigned int sdlExtensionCount = 0;
         VERIFY(SDL_Vulkan_GetInstanceExtensions((SDL_Window*)vk.window_p, &sdlExtensionCount, NULL), "%s\n ", SDL_GetError());
 
         const char** sdlExtensions = (const char**)alloc(NULL, sizeof(const char*) * sdlExtensionCount);
@@ -212,7 +209,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
     }
     // getPhysicalDevice
     {
-        uint32_t device_count = 0;
+        unsigned int device_count = 0;
         result = vkEnumeratePhysicalDevices(vk.instance, &device_count, NULL);
         VERIFY(!(result != VK_SUCCESS || device_count == 0), "Failed to find GPUs with Vulkan support\n");
 
@@ -227,7 +224,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
         // Check device properties to see if Vulkan 1.3 is supported
         VkPhysicalDeviceProperties deviceProps;
         vkGetPhysicalDeviceProperties(vk.physical_device, &deviceProps);
-        uint32_t device_api_version = deviceProps.apiVersion;
+        unsigned int device_api_version = deviceProps.apiVersion;
         printf("Device supports Vulkan version: %u.%u.%u\n",
                VK_VERSION_MAJOR(device_api_version),
                VK_VERSION_MINOR(device_api_version),
@@ -243,12 +240,12 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
         // If we need dynamic rendering extension (if not Vulkan 1.3)
         bool dynamicRenderingSupported = false;
         if (wants_dynamic_rendering) {
-            uint32_t extensionCount = 0;
+            unsigned int extensionCount = 0;
             vkEnumerateDeviceExtensionProperties(vk.physical_device, NULL, &extensionCount, NULL);
             VkExtensionProperties* extensions = malloc(sizeof(VkExtensionProperties) * extensionCount);
             vkEnumerateDeviceExtensionProperties(vk.physical_device, NULL, &extensionCount, extensions);
 
-            for (uint32_t i = 0; i < extensionCount; i++) {
+            for (unsigned int i = 0; i < extensionCount; i++) {
                 if (strcmp(extensions[i].extensionName, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME) == 0) {
                     dynamicRenderingSupported = true;
                     break;
@@ -265,7 +262,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
         vk.queue_family_indices.compute = UINT32_MAX;
         vk.queue_family_indices.transfer = UINT32_MAX;
 
-        uint32_t queue_family_count = 0;
+        unsigned int queue_family_count = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(vk.physical_device, &queue_family_count, NULL);
         VERIFY(queue_family_count != 0, "Failed to find any queue families\n");
 
@@ -274,7 +271,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
 
         vkGetPhysicalDeviceQueueFamilyProperties(vk.physical_device, &queue_family_count, queue_families);
 
-        for (uint32_t i = 0; i < queue_family_count; i++) {
+        for (unsigned int i = 0; i < queue_family_count; i++) {
             // Check for graphics support
             if ((queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && vk.queue_family_indices.graphics == UINT32_MAX) {
                 vk.queue_family_indices.graphics = i;
@@ -336,13 +333,13 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
         // Define queue priorities
         float queue_priority = 1.0f;
 
-        uint32_t unique_queue_families[4];
-        uint32_t unique_count = 0;
+        unsigned int unique_queue_families[4];
+        unsigned int unique_count = 0;
 
         #define ADD_UNIQUE_FAMILY(family) \
             do { \
                 bool exists = false; \
-                for (uint32_t i = 0; i < unique_count; i++) { \
+                for (unsigned int i = 0; i < unique_count; i++) { \
                     if (unique_queue_families[i] == family) { \
                         exists = true; \
                         break; \
@@ -362,7 +359,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
 
         VkDeviceQueueCreateInfo* queue_create_infos = alloc(NULL, sizeof(VkDeviceQueueCreateInfo) * unique_count);
         VERIFY(queue_create_infos, "Failed to allocate memory for queue create infos.\n");
-        for (uint32_t i = 0; i < unique_count; i++) {
+        for (unsigned int i = 0; i < unique_count; i++) {
             memset(&queue_create_infos[i], 0, sizeof(VkDeviceQueueCreateInfo));
             queue_create_infos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
             queue_create_infos[i].queueFamilyIndex = unique_queue_families[i];
@@ -437,36 +434,40 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
     }
     // createSwapChain
     {
-        vk.swap_chain.extent = (VkExtent2D){width, height};
-
         VkSurfaceCapabilitiesKHR surfaceCapabilities;
-        VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk.physical_device, vk.surface, &surfaceCapabilities);
+        TRACK(VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk.physical_device, vk.surface, &surfaceCapabilities));
         VERIFY(result == VK_SUCCESS, "Failed to get vk.surface capabilities\n");
 
-        VkExtent2D actualExtent = surfaceCapabilities.currentExtent.width != UINT32_MAX ?
+        VkExtent2D extent = surfaceCapabilities.currentExtent.width != UINT32_MAX ?
                                   surfaceCapabilities.currentExtent :
-                                  vk.swap_chain.extent;
+                                  (VkExtent2D){width, height};
 
-        uint32_t format_count;
+        unsigned int format_count;
         vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physical_device, vk.surface, &format_count, NULL);
         VERIFY(format_count > 0, "Failed to find vk.surface formats\n");
-        VkSurfaceFormatKHR* formats = alloc(NULL, sizeof(VkSurfaceFormatKHR) * format_count);
+        TRACK(VkSurfaceFormatKHR* formats = alloc(NULL, sizeof(VkSurfaceFormatKHR) * format_count));
         VERIFY(formats, "Failed to allocate memory for vk.surface formats\n");
-        vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physical_device, vk.surface, &format_count, formats);
+        TRACK(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physical_device, vk.surface, &format_count, formats));
 
-        // Choose a suitable format (prefer SRGB)
-        VkSurfaceFormatKHR chosenFormat = formats[0];
-        for (uint32_t i = 0; i < format_count; i++) {
-            if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+        // Choose a suitable format (prefer R8G8B8A8_SRGB then R8G8B8A8_UNORM)
+        VkSurfaceFormatKHR chosenFormat = formats[0]; // Default to first format if none of the preferred are available
+        for (unsigned int i = 0; i < format_count; i++) {
+            if (formats[i].format == VK_FORMAT_R8G8B8A8_SRGB && 
                 formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                chosenFormat = formats[i];
+                break;
+            } else if (formats[i].format == VK_FORMAT_R8G8B8A8_UNORM && 
+                       formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
                 chosenFormat = formats[i];
                 break;
             }
         }
-        vk.swap_chain.image_format = chosenFormat.format;
+        
+        VkFormat format = chosenFormat.format;
+        printf("swapchain image format = %d\n", format);
         free(formats);
 
-        uint32_t minImageCount = surfaceCapabilities.minImageCount + 1;
+        unsigned int minImageCount = surfaceCapabilities.minImageCount;
         if (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) {
             minImageCount = surfaceCapabilities.maxImageCount;
         }
@@ -478,12 +479,12 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
             .minImageCount   = minImageCount,
             .imageFormat     = chosenFormat.format,
             .imageColorSpace = chosenFormat.colorSpace,
-            .imageExtent     = actualExtent,
+            .imageExtent     = extent,
             .imageArrayLayers = 1,
             .imageUsage      = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .imageSharingMode      = i.graphics != i.present ? VK_SHARING_MODE_CONCURRENT : VK_SHARING_MODE_EXCLUSIVE,
             .queueFamilyIndexCount = i.graphics != i.present ? 2 : 0,
-            .pQueueFamilyIndices   = i.graphics != i.present ? (uint32_t[]){i.graphics, i.present} : NULL,
+            .pQueueFamilyIndices   = i.graphics != i.present ? (unsigned int[]){i.graphics, i.present} : NULL,
             .preTransform   = surfaceCapabilities.currentTransform,
             .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
             .presentMode    = VK_PRESENT_MODE_FIFO_KHR,
@@ -491,25 +492,40 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
             .oldSwapchain   = VK_NULL_HANDLE
         };
 
-        TRACK(result = vkCreateSwapchainKHR(vk.device, &swapchainCreateInfo, NULL, &vk.swap_chain.swap_chain));
+        TRACK(result = vkCreateSwapchainKHR(vk.device, &swapchainCreateInfo, NULL, &vk.swap_chain));
         VERIFY(result == VK_SUCCESS, "Failed to create swapchain\n");
 
-        vk.swap_chain.image_count = 0;
-        TRACK(vkGetSwapchainImagesKHR(vk.device, vk.swap_chain.swap_chain, &vk.swap_chain.image_count, NULL));
-        VERIFY(vk.swap_chain.image_count > 0, "there is 0 images in swapchain");
-        TRACK(vk.swap_chain.images_p = alloc(vk.swap_chain.images_p, sizeof(VkImage) * vk.swap_chain.image_count));
-        VERIFY(vk.swap_chain.images_p, "Failed to allocate memory for swapchain images\n");
-        TRACK(vkGetSwapchainImagesKHR(vk.device, vk.swap_chain.swap_chain, &vk.swap_chain.image_count, vk.swap_chain.images_p));
+        vk.images_count = 0;
+        TRACK(vkGetSwapchainImagesKHR(vk.device, vk.swap_chain, &vk.images_count, NULL));
+        VERIFY(vk.images_count > 0, "there is 0 images in swapchain");
+        if (surfaceCapabilities.maxImageCount > 0) {
+            VERIFY(vk.images_count <= surfaceCapabilities.maxImageCount, "there is more than expected images in swapchain. images_count = %d. maxImageCount = %d", vk.images_count, surfaceCapabilities.maxImageCount);
+        } else {
+            printf("Note: maxImageCount is 0, indicating no upper limit on image count.\n");
+        }
 
-        vk.swap_chain.image_views_p = alloc(vk.swap_chain.image_views_p, sizeof(VkImageView) * vk.swap_chain.image_count);
-        VERIFY(vk.swap_chain.image_views_p, "Failed to allocate memory for image views\n");
+        TRACK(vk.p_images = alloc(vk.p_images, sizeof(Image) * vk.images_count));
+        VERIFY(vk.p_images, "Failed to allocate memory for swapchain images\n");
 
-        for (uint32_t i = 0; i < vk.swap_chain.image_count; i++) {
-            VkImageViewCreateInfo viewInfo = {
+        VkImage* p_tmp_images = (VkImage*)alloc(NULL, sizeof(VkImage) * vk.images_count);
+        VERIFY(p_tmp_images, "Failed to allocate memory for temporary image array\n");
+        TRACK(vkGetSwapchainImagesKHR(vk.device, vk.swap_chain, &vk.images_count, p_tmp_images));
+
+        for (unsigned int i = 0; i < vk.images_count; i++) {
+            vk.p_images[i].image = p_tmp_images[i];
+            vk.p_images[i].extent = extent;
+            vk.p_images[i].format = format;
+            vk.p_images[i].layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        }
+
+        free(p_tmp_images);
+
+        for (unsigned int i = 0; i < vk.images_count; i++) {
+            VkImageViewCreateInfo view_info = {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = vk.swap_chain.images_p[i],
+                .image = vk.p_images[i].image,
                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = vk.swap_chain.image_format,
+                .format = vk.p_images[i].format,
                 .components = {
                     .r = VK_COMPONENT_SWIZZLE_IDENTITY,
                     .g = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -525,7 +541,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
                 },
             };
 
-            TRACK(result = vkCreateImageView(vk.device, &viewInfo, NULL, &vk.swap_chain.image_views_p[i]));
+            TRACK(result = vkCreateImageView(vk.device, &view_info, NULL, &vk.p_images[i].view));
             VERIFY(result == VK_SUCCESS, "Failed to create image view %u\n", i);
         }
     }
@@ -541,7 +557,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
                 },
                 {
                     .type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = 20,
+                    .descriptorCount = 100,
                 },
                 {
                     .type            = VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -611,25 +627,27 @@ void vk_StartApp(
             }
         }
 
+        
         // Update Uniform Buffer Data
         UniformBufferObject ubo = {};
-        ubo.targetWidth = (float)vk->swap_chain.extent.width;
-        ubo.targetHeight = (float)vk->swap_chain.extent.height;
+        ubo.targetWidth = (float)vk->p_images[0].extent.width;
+        ubo.targetHeight = (float)vk->p_images[0].extent.height;
 
         void* data;
         TRACK(VkResult map_result = vmaMapMemory(vk->allocator, uniformBufferAllocation, &data));
         VERIFY(map_result == VK_SUCCESS, "Failed to map uniform buffer memory: %d\n", map_result);
         TRACK(memcpy(data, &ubo, sizeof(ubo)));
         TRACK(vmaUnmapMemory(vk->allocator, uniformBufferAllocation));
-        
         TRACK(vkWaitForFences(vk->device, 1, &inFlightFence, VK_TRUE, UINT64_MAX));
         TRACK(vkResetFences(vk->device, 1, &inFlightFence));
 
         // Acquire the next image from the swap chain
-        uint32_t image_index;
-        TRACK(VkResult acquire_result = vkAcquireNextImageKHR(vk->device, vk->swap_chain.swap_chain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &image_index));
+        unsigned int image_index;
+        TRACK(VkResult acquire_result = vkAcquireNextImageKHR(vk->device, vk->swap_chain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &image_index));
         VERIFY(!(acquire_result == VK_ERROR_OUT_OF_DATE_KHR || acquire_result == VK_SUBOPTIMAL_KHR), "Swapchain out of date or suboptimal. Consider recreating swapchain.\n");
         VERIFY(!(acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR), "Failed to acquire swapchain image: %d\n", acquire_result);
+
+        //vk_Image_TransitionLayoutWithoutCommandBuffer(vk, &vk->p_images[image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
         // Submit the command buffer
         VkSubmitInfo submit_info = {
@@ -645,13 +663,16 @@ void vk_StartApp(
         TRACK(VkResult submit_result = vkQueueSubmit(vk->queues.graphics, 1, &submit_info, inFlightFence));
         VERIFY(submit_result == VK_SUCCESS, "Failed to submit draw command buffer: %d\n", submit_result);
 
+
+        //vk_Image_TransitionLayoutWithoutCommandBuffer(vk, &vk->p_images[image_index], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
         // Present the image
         VkPresentInfoKHR present_info = {
             .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .waitSemaphoreCount = 1,
             .pWaitSemaphores    = (VkSemaphore[]){ renderFinishedSemaphore },
             .swapchainCount     = 1,
-            .pSwapchains        = (VkSwapchainKHR[]){ vk->swap_chain.swap_chain },
+            .pSwapchains        = (VkSwapchainKHR[]){ vk->swap_chain },
             .pImageIndices      = &image_index  
         };
 
@@ -695,16 +716,16 @@ void vk_Destroy(
         vmaDestroyBuffer(p_vk->allocator, uniformBuffer, uniformBufferAllocation);
     if (instanceBuffer != VK_NULL_HANDLE)
         vmaDestroyBuffer(p_vk->allocator, instanceBuffer, instanceBufferAllocation);
-    if (p_vk->swap_chain.image_views_p != NULL) {
-        for (uint32_t i = 0; i < p_vk->swap_chain.image_count; i++) {
-            if (p_vk->swap_chain.image_views_p[i] != VK_NULL_HANDLE) {
-                vkDestroyImageView(p_vk->device, p_vk->swap_chain.image_views_p[i], NULL);
-            }
+
+    for (unsigned int i = 0; i < p_vk->images_count; i++) {
+        if (p_vk->p_images[i].view != VK_NULL_HANDLE) {
+            vkDestroyImageView(p_vk->device, p_vk->p_images[i].view, NULL);
         }
-        free(p_vk->swap_chain.image_views_p);
     }
-    if (p_vk->swap_chain.swap_chain != VK_NULL_HANDLE) 
-        vkDestroySwapchainKHR(p_vk->device, p_vk->swap_chain.swap_chain, NULL);
+    free(p_vk->p_images);
+
+    if (p_vk->swap_chain != VK_NULL_HANDLE) 
+        vkDestroySwapchainKHR(p_vk->device, p_vk->swap_chain, NULL);
     if (p_vk->command_pool != VK_NULL_HANDLE)
         vkDestroyCommandPool(p_vk->device, p_vk->command_pool, NULL);
     if (imageAvailableSemaphore != VK_NULL_HANDLE) 
@@ -724,8 +745,8 @@ void vk_Destroy(
     }
     if (p_vk->surface != VK_NULL_HANDLE)
         vkDestroySurfaceKHR(p_vk->instance, p_vk->surface, NULL);
-    if (p_vk->swap_chain.swap_chain != VK_NULL_HANDLE)
-        vkDestroySwapchainKHR(p_vk->device, p_vk->swap_chain.swap_chain, NULL);
+    if (p_vk->swap_chain != VK_NULL_HANDLE)
+        vkDestroySwapchainKHR(p_vk->device, p_vk->swap_chain, NULL);
     if (p_vk->allocator != VK_NULL_HANDLE)
         vmaDestroyAllocator(p_vk->allocator);
     if (p_vk->window_p != NULL)

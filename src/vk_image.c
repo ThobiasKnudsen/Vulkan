@@ -46,9 +46,9 @@ Image vk_Image_Create_ReadWrite(Vk* p_vk, VkExtent2D extent, VkFormat format) {
 		.subresourceRange.layerCount = 1,
 	};
 
-	TRACK(result = vkCreateImageView(p_vk->device, &view_info, NULL, &image.image_view));
+	TRACK(result = vkCreateImageView(p_vk->device, &view_info, NULL, &image.view));
 	VERIFY(result == VK_SUCCESS, "failed to create\n ");
-	VERIFY(image.image_view != VK_NULL_HANDLE, "failed to create");
+	VERIFY(image.view != VK_NULL_HANDLE, "failed to create");
 
 	VkSamplerCreateInfo sampler_info = {
 		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -202,6 +202,13 @@ void vk_Image_TransitionLayout(VkCommandBuffer command_buffer, Image* p_image, V
     TRACK(vkCmdPipelineBarrier( command_buffer, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &barrier ));
 
     p_image->layout = new_layout;
+}
+void vk_Image_TransitionLayoutWithoutCommandBuffer(Vk* p_vk, Image* p_image, VkImageLayout new_layout) {
+    VERIFY(p_vk, "NULL pointer");
+    VERIFY(p_image, "NULL pointer");
+    TRACK(VkCommandBuffer command_buffer = vk_CommandBuffer_CreateAndBeginSingleTimeUsage(p_vk));
+    TRACK(vk_Image_TransitionLayout(command_buffer, p_image, new_layout));
+    TRACK(vk_CommandBuffer_EndAndDestroySingleTimeUsage(p_vk, command_buffer));
 }
 void vk_Image_TransitionLayout_0(
     VkCommandBuffer command_buffer, 

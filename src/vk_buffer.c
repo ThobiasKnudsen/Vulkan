@@ -15,6 +15,14 @@ Buffer vk_Buffer_Create(Vk* p_vk, VkDeviceSize size, VkBufferUsageFlags usage) {
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
     };
 
+    // Add necessary usage flags for transfer operations
+    if (usage & VK_BUFFER_USAGE_VERTEX_BUFFER_BIT || usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT) {
+        bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    }
+    if (usage & (VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT)) {
+        bufferInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    }
+
     VmaMemoryUsage memoryUsage = VMA_MEMORY_USAGE_AUTO; // Default to auto selection
 
     // Prioritize memory usage based on buffer type
@@ -31,7 +39,6 @@ Buffer vk_Buffer_Create(Vk* p_vk, VkDeviceSize size, VkBufferUsageFlags usage) {
 
     VmaAllocationCreateInfo allocInfo = {
         .usage = memoryUsage,
-        // Add appropriate flags if mapping is needed
         .flags = 0
     };
 
