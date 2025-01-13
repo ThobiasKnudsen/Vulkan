@@ -514,6 +514,18 @@ static uint32_t FormatSize(VkFormat format) {
   }
   return result;
 }
+
+void print_attribute_descriptions(VkVertexInputAttributeDescription* attribs, size_t size) {
+
+    for (unsigned int i = 0; i < size; ++i) {
+        printf("attrib %d\n", i);
+        printf("\t%d\n", attribs[i].location);
+        printf("\t%d\n", attribs[i].binding);
+        printf("\t%d\n", attribs[i].format);
+        printf("\t%d\n", attribs[i].offset);
+    }
+}
+
 VkVertexInputAttributeDescription* vk_VertexInputAttributeDescriptions_CreateFromVertexShader( SpvShader spv_shader, uint32_t* p_attribute_count, uint32_t* p_binding_stride) {
 
     // Create SPIRV-Reflect shader module
@@ -613,15 +625,4 @@ VkVertexInputAttributeDescription* vk_VertexInputAttributeDescriptions_CreateFro
     print_attribute_descriptions(attribute_descriptions, *p_attribute_count);
 
     return attribute_descriptions;  
-}
-
-void print_attribute_descriptions(VkVertexInputAttributeDescription* attribs, size_t size) {
-
-    for (unsigned int i = 0; i < size; ++i) {
-        printf("attrib %d\n", i);
-        printf("\t%d\n", attribs[i].location);
-        printf("\t%d\n", attribs[i].binding);
-        printf("\t%d\n", attribs[i].format);
-        printf("\t%d\n", attribs[i].offset);
-    }
 }

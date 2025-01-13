@@ -13,7 +13,6 @@
 
 #define DEBUG
 #include "debug.h"
-void* alloc(void* ptr, size_t size);
 
 #define ALL_INSTANCE_COUNT 5
 #define INDICES_COUNT 5
@@ -90,7 +89,7 @@ typedef struct {
     VmaAllocator                allocator;
     VkSwapchainKHR              swap_chain;
     Image*                      p_images;
-    size_t                      images_count;
+    unsigned int                images_count;
 
 } Vk;
 
@@ -141,6 +140,7 @@ void                        vk_Destroy(Vk* p_vk,VkPipeline graphicsPipeline,VkPi
 Buffer                      vk_Buffer_Create( Vk* p_vk, VkDeviceSize size, VkBufferUsageFlags usage );
 void                        vk_Buffer_Clear( Vk* p_vk, Buffer buffer, int clear_value) ;
 void                        vk_Buffer_Update( Vk* p_vk, Buffer buffer, VkDeviceSize dst_offset, const void* p_src_data, VkDeviceSize size );
+void                        vk_Buffer_CopyBuffer(Vk* p_vk, Buffer src_buffer, Buffer dst_buffer, VkDeviceSize src_offset, VkDeviceSize dst_offset, VkDeviceSize size);
 
 // image
 Image                       vk_Image_Create_ReadWrite( Vk* p_vk,  VkExtent2D extent,  VkFormat format );
@@ -154,7 +154,6 @@ void                        vk_Image_TransitionLayout_0(VkCommandBuffer command_
 void                        vk_Image_Destroy( VkDevice device, VkImage* vulkanImage );
 
 // shader
-size_t                              readFile(const char* filename, char** dst_buffer);
 SpvShader                           vk_SpvShader_Create(Vk* p_vk, const char* p_glsl_code, size_t glsl_size, const char* glsl_filename, shaderc_shader_kind kind);
 SpvShader                           vk_SpvShader_CreateFromGlslFile(Vk* p_vk, const char* filename, shaderc_shader_kind shader_kind);
 void                                vk_SpvShader_CreateSpvFileFromGlslFile(Vk* p_vk, const char* glsl_filename, const char* spv_filename, shaderc_shader_kind shader_kind);
@@ -182,19 +181,20 @@ VkCommandBuffer             vk_CommandBuffer_CreateAndBeginSingleTimeUsage(Vk* p
 void                        vk_CommandBuffer_EndAndDestroySingleTimeUsage(Vk* p_vk, VkCommandBuffer command_buffer);
 VkCommandBuffer             vk_CommandBuffer_CreateWithImageAttachment( Vk* p_vk, Image* p_image, VkDescriptorSet* p_desc_set, size_t desc_set_count, VkPipeline graphics_pipeline, VkPipelineLayout graphics_pipeline_layout, VkBuffer instance_buffer, unsigned int vertex_count, unsigned int instance_count); 
 void                        vk_CommandBuffer_Submit(Vk* p_vk, VkCommandBuffer command_buffer);
+VkCommandBuffer             vk_CommandBuffer_RecordStaticRendering(Vk* p_vk, Image* p_target_image, VkDescriptorSet* p_desc_sets,  size_t desc_sets_count, VkPipeline graphics_pipeline, VkPipelineLayout graphics_pipeline_layout, VkBuffer instance_buffer, size_t instances_count);
 
 // synchronization
 VkSemaphore                 vk_Semaphore_Create(VkDevice device);
 VkFence                     vk_Fence_Create(VkDevice device);
 
 // gui_graphics_pipeline 
-Vk_GraphicsPipeline        Vk_GraphicsPipeline_Initialize(Vk* p_vk);
+Vk_GraphicsPipeline         Vk_GraphicsPipeline_Initialize(Vk* p_vk);
 void                        Vk_GraphicsPipeline_AddShader(Vk_GraphicsPipeline* p_pipeline, SpvShader spv_shader, shaderc_shader_kind shader_kind);
 void                        Vk_GraphicsPipeline_CreatePipeline(Vk_GraphicsPipeline* p_pipeline, VkFormat format);
 void                        Vk_GraphicsPipeline_CreatePipeline_0(Vk_GraphicsPipeline* p_pipeline, VkFormat format);
 
 // gui_rendering
-Vk_Rendering               Vk_Rendering_Create();
+Vk_Rendering                Vk_Rendering_Create();
 void                        Vk_Rendering_SetGraphicsPipeline(Vk_Rendering* p_rendering, Vk_GraphicsPipeline* p_pipeline, VkBuffer buffer, Image* p_image);
 void                        Vk_Rendering_SetTargetImage(Vk_Rendering* p_rendering, Image* p_target_image);
 void                        Vk_Rendering_UpdateInstanceBuffer(Vk_Rendering* p_rendering, size_t dst_offset, void* p_src_data, size_t size);

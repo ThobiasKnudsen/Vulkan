@@ -2,6 +2,7 @@
 
 #include <stddef.h>  // For size_t
 #include <stdio.h>   // For printf and snprintf
+#include <vulkan/vulkan.h>
 
 // Function declarations
 void DebugPrintf(const char* message, size_t line, const char* file);
@@ -42,3 +43,6 @@ void DebugPrintMemory();
 #define VERIFY(expr, fmt, ...)  
 
 #endif
+
+void* alloc(void* ptr, size_t size);
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);

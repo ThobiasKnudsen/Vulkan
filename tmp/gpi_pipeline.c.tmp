@@ -1,0 +1,262 @@
+#include "vk.h"
+#include "gpi.h"
+
+Gpi_Pipeline_Graphics gpi_Pipeline_Graphics_Create(
+    Vk* p_vk, 
+    Gpi_Shader* p_shaders, 
+    unsigned int shaders_count, 
+    VkFormat format) 
+{
+	VERIFY(p_vk, "NULL pointer");
+	VERIFY(p_shaders, "NULL pointer");
+	VERIFY(shaders_count > 0, "need at least one shader");
+
+	Gpi_Pipeline_Graphics pipeline = {0};
+	pipeline.p_ctx = p_vk;
+	printf("%p\n", pipeline.p_ctx);
+	pipeline.shaders_count = shaders_count;
+	
+	// copying shaders
+	{
+		pipeline.shaders_count = shaders_count;
+		TRACK(pipeline.p_shaders = alloc(pipeline.p_shaders, shaders_count * sizeof(Gpi_Shader)));
+		VERIFY(pipeline.p_shaders, " ");
+
+		for (unsigned int i = 0; i < shaders_count; ++i) {
+			VERIFY(p_shaders[i].p_spv_code, "shader %d", i);
+			VERIFY(p_shaders[i].spv_code_size > 0, "shader %d", i);
+			// VERIFY(p_shaders[i].shader_kind != VK_NULL_HANDLE > 0, "");
+			// VERIFY(p_shaders[i].reflect_shader_module != VK_NULL_HANDLE > 0, "");
+			VERIFY(p_shaders[i].shader_module != VK_NULL_HANDLE, "shader %d", i);
+
+		    // Ensure no shader of same kind
+		    for (unsigned int j = 0; j < i; ++j) {
+		        VERIFY(p_shaders[i].shader_kind != p_shaders[j].shader_kind, "you cannot provide multiple of the same shader_kind. shader %d and %d", j, i);
+		    }
+
+		    pipeline.p_shaders[i].spv_code_size = p_shaders[i].spv_code_size;
+		    TRACK(pipeline.p_shaders[i].p_spv_code = alloc(NULL, pipeline.p_shaders[i].spv_code_size));
+		    VERIFY(pipeline.p_shaders[i].spv_code_size, " ");
+		    TRACK(memcpy(pipeline.p_shaders[i].p_spv_code, p_shaders[i].p_spv_code, pipeline.p_shaders[i].spv_code_size));
+		    pipeline.p_shaders[i].reflect_shader_module = p_shaders[i].reflect_shader_module;
+		    pipeline.p_shaders[i].shader_module = p_shaders[i].shader_module;
+		    pipeline.p_shaders[i].shader_kind = p_shaders[i].shader_kind;
+		}
+	}
+
+    // Gather all reflect shader modules
+    TRACK(SpvReflectShaderModule* p_shader_modules = alloc(NULL, pipeline.shaders_count * sizeof(SpvReflectShaderModule)));
+    for (unsigned int i = 0; i < pipeline.shaders_count; ++i) {
+        p_shader_modules[i] = pipeline.p_shaders[i].reflect_shader_module;
+    }
+
+    // Create descriptor set layouts from reflection
+    TRACK(pipeline.p_desc_sets_layout_create_info = vk_DescriptorSetLayoutCreateInfo_Create(pipeline.p_ctx, p_shader_modules, pipeline.shaders_count, (size_t*)&pipeline.desc_sets_count));
+
+    // Create the descriptor set layouts
+    TRACK(pipeline.p_desc_sets_layout = vk_DescriptorSetLayout_Create(pipeline.p_ctx, pipeline.p_desc_sets_layout_create_info, pipeline.desc_sets_count));
+
+    TRACK(free(p_shader_modules));
+
+    // Create pipeline layout
+    VkPipelineLayoutCreateInfo vk_pipeline_layout_info = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount         = pipeline.desc_sets_count,
+        .pSetLayouts            = pipeline.p_desc_sets_layout,
+        .pushConstantRangeCount = 0,
+        .pPushConstantRanges    = NULL
+    };
+
+    TRACK(VkResult result = vkCreatePipelineLayout(pipeline.p_ctx->device, &vk_pipeline_layout_info, NULL, &pipeline.pipeline_layout));
+    VERIFY(result == VK_SUCCESS, "Failed to create pipeline layout");
+
+    // Find vertex shader index
+    unsigned int vertex_index = 0;
+    for (; vertex_index < pipeline.shaders_count; ++vertex_index) {
+        if (pipeline.p_shaders[vertex_index].shader_kind == shaderc_vertex_shader) {
+            break;
+        }
+    }
+    VERIFY(vertex_index < pipeline.shaders_count, "Could not find vertex shader");
+    printf("vertex_index %d\n", vertex_index);
+
+    unsigned int vertex_attrib_count;
+    unsigned int vertex_binding_stride;
+    TRACK(VkVertexInputAttributeDescription* vertex_input_attrib_desc = gpi_Shader_Create_VertexInputAttribDesc(
+        pipeline.p_shaders[vertex_index], 
+        &vertex_attrib_count,
+        &vertex_binding_stride
+    ));
+
+    // Set up shader stages
+    const unsigned int stage_count = (unsigned int)pipeline.shaders_count;
+    TRACK(VkPipelineShaderStageCreateInfo* p_stages = alloc(NULL, stage_count * sizeof(VkPipelineShaderStageCreateInfo)));
+    VERIFY(p_stages, "Failed to allocate memory for pipeline stages");
+    memset(p_stages, 0, stage_count * sizeof(VkPipelineShaderStageCreateInfo));
+
+    for (unsigned int i = 0; i < stage_count; ++i) {
+        p_stages[i].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        p_stages[i].pName  = "main";
+        p_stages[i].module = pipeline.p_shaders[i].shader_module;
+
+        if (pipeline.p_shaders[i].shader_kind == shaderc_fragment_shader) {
+            p_stages[i].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        } else if (pipeline.p_shaders[i].shader_kind == shaderc_vertex_shader) {
+            p_stages[i].stage = VK_SHADER_STAGE_VERTEX_BIT;
+        } else if (pipeline.p_shaders[i].shader_kind == shaderc_compute_shader) {
+            p_stages[i].stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        } else if (pipeline.p_shaders[i].shader_kind == shaderc_geometry_shader) {
+            p_stages[i].stage = VK_SHADER_STAGE_GEOMETRY_BIT;
+        } else if (pipeline.p_shaders[i].shader_kind == shaderc_tess_control_shader) {
+            p_stages[i].stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+        } else if (pipeline.p_shaders[i].shader_kind == shaderc_tess_evaluation_shader) {
+            p_stages[i].stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+        } else {
+            VERIFY(false, "Unsupported shader kind encountered");
+        }
+    }
+
+    VkPipelineRenderingCreateInfo rendering_info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &format,
+    };
+
+    // Match the pipeline configuration from vk_Pipeline_Graphics_Create
+    VkViewport viewport = {
+        .x        = 0.0f,
+        .y        = 0.0f,
+        .width    = (float)pipeline.p_ctx->p_images[0].extent.width,
+        .height   = (float)pipeline.p_ctx->p_images[0].extent.height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    };
+
+    VkRect2D scissor = {
+        .offset = {0, 0},
+        .extent = pipeline.p_ctx->p_images[0].extent
+    };
+
+    VkGraphicsPipelineCreateInfo pipeline_info = {
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext               = &rendering_info,
+        .stageCount          = stage_count,
+        .pStages             = p_stages,
+        .pVertexInputState   = &(VkPipelineVertexInputStateCreateInfo) {
+            .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            .vertexBindingDescriptionCount   = 1,
+            .pVertexBindingDescriptions      = (VkVertexInputBindingDescription[1]) {{
+                .binding   = 0,
+                .stride    = vertex_binding_stride,
+                .inputRate = VK_VERTEX_INPUT_RATE_INSTANCE
+            }},
+            .vertexAttributeDescriptionCount = vertex_attrib_count,
+            .pVertexAttributeDescriptions    = vertex_input_attrib_desc,
+        },
+        .pInputAssemblyState = &(VkPipelineInputAssemblyStateCreateInfo) {
+            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+            .primitiveRestartEnable = VK_FALSE
+        },
+        .pViewportState      = &(VkPipelineViewportStateCreateInfo) {
+            .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+            .viewportCount = 1,
+            .pViewports    = &viewport,
+            .scissorCount  = 1,
+            .pScissors     = &scissor
+        },
+        .pRasterizationState = &(VkPipelineRasterizationStateCreateInfo) {
+            .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            .depthClampEnable        = VK_FALSE,
+            .rasterizerDiscardEnable = VK_FALSE,
+            .polygonMode             = VK_POLYGON_MODE_FILL,
+            .lineWidth               = 1.0f,
+            .cullMode                = VK_CULL_MODE_BACK_BIT,
+            .frontFace               = VK_FRONT_FACE_CLOCKWISE,
+            .depthBiasEnable         = VK_FALSE
+        },
+        .pMultisampleState   = &(VkPipelineMultisampleStateCreateInfo) {
+            .sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+            .sampleShadingEnable  = VK_FALSE,
+            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+        },
+        .pDepthStencilState  = &(VkPipelineDepthStencilStateCreateInfo) {
+            .sType                  = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+            .depthTestEnable        = VK_FALSE,
+            .depthWriteEnable       = VK_FALSE,
+            .depthCompareOp         = VK_COMPARE_OP_LESS,
+            .depthBoundsTestEnable  = VK_FALSE,
+            .stencilTestEnable      = VK_FALSE
+        },
+        .pColorBlendState    = &(VkPipelineColorBlendStateCreateInfo) {
+            .sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            .logicOpEnable     = VK_FALSE,
+            .logicOp           = VK_LOGIC_OP_COPY,
+            .attachmentCount   = 1,
+            .pAttachments      = &(VkPipelineColorBlendAttachmentState) {
+                .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | 
+                                       VK_COLOR_COMPONENT_G_BIT | 
+                                       VK_COLOR_COMPONENT_B_BIT | 
+                                       VK_COLOR_COMPONENT_A_BIT,
+                .blendEnable         = VK_TRUE,
+                .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .colorBlendOp        = VK_BLEND_OP_ADD,
+                .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                .alphaBlendOp        = VK_BLEND_OP_ADD
+            },
+            .blendConstants[0] = 0.0f,
+            .blendConstants[1] = 0.0f,
+            .blendConstants[2] = 0.0f,
+            .blendConstants[3] = 0.0f
+        },
+        .pDynamicState       = NULL, // Matching the old method: no dynamic viewport/scissor
+        .layout              = pipeline.pipeline_layout,
+        .renderPass          = VK_NULL_HANDLE,
+        .subpass             = 0,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .basePipelineIndex   = -1
+    };
+
+
+    TRACK(result = vkCreateGraphicsPipelines(pipeline.p_ctx->device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &pipeline.graphics_pipeline));
+    VERIFY(result == VK_SUCCESS, "Failed to create graphics pipeline");
+
+    free(p_stages);
+    free(vertex_input_attrib_desc);
+
+    return pipeline;
+}
+void gpi_Pipeline_Graphics_Destroy(
+    Vk* p_ctx, 
+    Gpi_Pipeline_Graphics* p_pipeline) 
+{
+    VERIFY(p_ctx, "NULL pointer");
+    VERIFY(p_pipeline, "NULL pointer");
+
+    if (p_pipeline->graphics_pipeline) {
+        vkDestroyPipeline(p_ctx->device, p_pipeline->graphics_pipeline, NULL);
+    }
+    if (p_pipeline->pipeline_layout) {
+        vkDestroyPipelineLayout(p_ctx->device, p_pipeline->pipeline_layout, NULL);
+    }
+    if (p_pipeline->p_desc_sets_layout) {
+        for (unsigned int i = 0; i < p_pipeline->desc_sets_count; ++i) {
+            if (p_pipeline->p_desc_sets_layout[i]) {
+                vkDestroyDescriptorSetLayout(p_ctx->device, p_pipeline->p_desc_sets_layout[i], NULL);
+            }
+        }
+        free(p_pipeline->p_desc_sets_layout);
+    }
+    if (p_pipeline->p_desc_sets_layout_create_info) {
+        free(p_pipeline->p_desc_sets_layout_create_info);
+    }
+    if (p_pipeline->p_shaders) {
+        for (unsigned int i = 0; i < p_pipeline->shaders_count; ++i) {
+            gpi_Shader_Destroy(p_ctx, &p_pipeline->p_shaders[i]);
+        }
+        free(p_pipeline->p_shaders);
+    }
+    memset(p_pipeline, 0, sizeof(Gpi_Pipeline_Graphics));
+}

@@ -1,0 +1,615 @@
+#include "vk.h"
+#include "gpi.h"
+
+
+size_t _readFile(
+	const char* filename, 
+	char** dst_buffer) 
+{
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        printf("Failed to open shader source file '%s'\n", filename);
+        exit(-1);
+    }
+
+    fseek(file, 0, SEEK_END);
+    size_t file_size = ftell(file);
+    rewind(file);
+
+    *dst_buffer = (char*)alloc(NULL, file_size + 1);
+    if (!*dst_buffer) {
+        printf("Failed to allocate memory for shader source '%s'\n", filename);
+        fclose(file);
+        exit(-1);
+    }
+
+    size_t readSize = fread(*dst_buffer, 1, file_size, file);
+    (*dst_buffer)[file_size] = '\0'; 
+
+    if (readSize != file_size) {
+        printf("Failed to read shader source '%s'\n", filename);
+        free(*dst_buffer);
+        fclose(file);
+        exit(-1);
+    }
+
+    fclose(file);
+    return (unsigned int)file_size;
+}
+void gpi_Shader_CreateSpvFileFromGlslFile(
+	Vk* p_vk, 
+	const char* glsl_file_path, 
+	const char* spv_file_path, 
+	shaderc_shader_kind shader_kind) 
+{
+    SpvShader spv_shader = vk_SpvShader_CreateFromGlslFile(p_vk, glsl_file_path, shader_kind);
+    FILE* spv_file = fopen(spv_file_path, "wb");
+    VERIFY(spv_file, "failed to open file");
+    size_t written = fwrite(spv_shader.code, 1, spv_shader.size, spv_file);
+    VERIFY(written == spv_shader.size, "?");
+    fclose(spv_file);
+}
+
+void gpi_Shader_Destroy(Vk* p_ctx, Gpi_Shader* p_shader) {
+    VERIFY(p_ctx, "NULL pointer");
+    VERIFY(p_shader, "NULL pointer");
+
+    if (p_shader->shader_module) {
+        vkDestroyShaderModule(p_ctx->device, p_shader->shader_module, NULL);
+    }
+    if (p_shader->p_spv_code) {
+        free(p_shader->p_spv_code);
+    }
+    spvReflectDestroyShaderModule(&p_shader->reflect_shader_module);
+    memset(p_shader, 0, sizeof(Gpi_Shader));
+}
+
+Gpi_Shader gpi_Shader_CreateFromGlslFile(
+	Vk* p_vk, 
+	const char* glsl_file_path, 
+	shaderc_shader_kind shader_kind) 
+{
+	VERIFY(p_vk, "NULL pointer");
+	VERIFY(glsl_file_path, "NULL pointer");
+	VERIFY(	shader_kind == shaderc_vertex_shader ||
+  			shader_kind == shaderc_fragment_shader || 
+  			shader_kind == shaderc_compute_shader || 
+  			shader_kind == shaderc_geometry_shader ||
+  			shader_kind == shaderc_tess_control_shader ||
+  			shader_kind == shaderc_tess_evaluation_shader, 
+  			"shader kind is not supported");
+
+	Gpi_Shader shader = {0};
+
+	// shaderc_shader_kind
+	{
+		shader.shader_kind = shader_kind;
+	}
+
+	// spv code compilation
+	{
+		char* p_glsl_code = NULL;
+	    TRACK(size_t glsl_code_size = _readFile(glsl_file_path, &p_glsl_code));
+	    VERIFY(p_glsl_code, "NULL pointer");
+	   	TRACK(shaderc_compilation_result_t result = shaderc_compile_into_spv(
+	    	p_vk->shaderc_compiler, p_glsl_code, glsl_code_size, shader_kind, glsl_file_path, "main", p_vk->shaderc_options));
+	    VERIFY(shaderc_result_get_compilation_status(result) == shaderc_compilation_status_success, 
+	    	"Shader compilation error in '%s':\n%s\n", glsl_file_path, shaderc_result_get_error_message(result));
+		TRACK(shader.spv_code_size = shaderc_result_get_length(result));
+	    TRACK(shader.p_spv_code = alloc(NULL, shader.spv_code_size));
+	    VERIFY(shader.p_spv_code, "Failed to allocate memory for SPIR-V code");
+	    memcpy(shader.p_spv_code, shaderc_result_get_bytes(result), shader.spv_code_size);
+	    TRACK(shaderc_result_release(result));
+	}
+
+    // SpvReflectShaderModule
+    {
+		TRACK(SpvReflectResult reflectResult = spvReflectCreateShaderModule(shader.spv_code_size, shader.p_spv_code, &shader.reflect_shader_module));
+	    VERIFY(reflectResult == SPV_REFLECT_RESULT_SUCCESS, "Failed to create SPIRV-Reflect shader module\n");
+	    if (shader_kind == shaderc_vertex_shader) {
+	    	VERIFY(shader.reflect_shader_module.shader_stage  == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT, "generated reflect shader and shaderc kind is not the same");
+	    }
+	    else if (shader_kind == shaderc_fragment_shader) {
+	    	VERIFY(shader.reflect_shader_module.shader_stage  == SPV_REFLECT_SHADER_STAGE_FRAGMENT_BIT, "generated reflect shader and shaderc kind is not the same");
+	    }
+	    else if (shader_kind == shaderc_compute_shader) {
+	    	VERIFY(shader.reflect_shader_module.shader_stage  == SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT, "generated reflect shader and shaderc kind is not the same");
+	    }
+	    else if (shader_kind == shaderc_geometry_shader) {
+	    	VERIFY(shader.reflect_shader_module.shader_stage  == SPV_REFLECT_SHADER_STAGE_GEOMETRY_BIT, "generated reflect shader and shaderc kind is not the same");
+	    }
+	    else if (shader_kind == shaderc_tess_control_shader) {
+	    	VERIFY(shader.reflect_shader_module.shader_stage  == SPV_REFLECT_SHADER_STAGE_TESSELLATION_CONTROL_BIT, "generated reflect shader and shaderc kind is not the same");
+	    }
+	    else if (shader_kind == shaderc_tess_evaluation_shader) {
+	    	VERIFY(shader.reflect_shader_module.shader_stage  == SPV_REFLECT_SHADER_STAGE_TESSELLATION_EVALUATION_BIT, "generated reflect shader and shaderc kind is not the same");
+	    }	
+	    else {
+	    	VERIFY(false, "shader kind is not supported. AND THIS SHOULD HAVE BEEN CHECKED EARLIER");
+	    }
+	}
+
+    // VkShaderModule
+    {
+    	VkShaderModuleCreateInfo create_info = {
+	        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+	        .codeSize = shader.spv_code_size,
+	        .pCode = shader.p_spv_code
+	    };
+	    TRACK(VkResult result = vkCreateShaderModule(p_vk->device, &create_info, NULL, &shader.shader_module));
+	    VERIFY(result == VK_SUCCESS, "Failed to create Vulkan shader module\n");
+    }
+
+    return shader;
+}
+
+static uint32_t _formatSize(VkFormat format) {
+  uint32_t result = 0;
+  switch (format) {
+    case VK_FORMAT_UNDEFINED:
+      result = 0;
+      break;
+    case VK_FORMAT_R4G4_UNORM_PACK8:
+      result = 1;
+      break;
+    case VK_FORMAT_R4G4B4A4_UNORM_PACK16:
+      result = 2;
+      break;
+    case VK_FORMAT_B4G4R4A4_UNORM_PACK16:
+      result = 2;
+      break;
+    case VK_FORMAT_R5G6B5_UNORM_PACK16:
+      result = 2;
+      break;
+    case VK_FORMAT_B5G6R5_UNORM_PACK16:
+      result = 2;
+      break;
+    case VK_FORMAT_R5G5B5A1_UNORM_PACK16:
+      result = 2;
+      break;
+    case VK_FORMAT_B5G5R5A1_UNORM_PACK16:
+      result = 2;
+      break;
+    case VK_FORMAT_A1R5G5B5_UNORM_PACK16:
+      result = 2;
+      break;
+    case VK_FORMAT_R8_UNORM:
+      result = 1;
+      break;
+    case VK_FORMAT_R8_SNORM:
+      result = 1;
+      break;
+    case VK_FORMAT_R8_USCALED:
+      result = 1;
+      break;
+    case VK_FORMAT_R8_SSCALED:
+      result = 1;
+      break;
+    case VK_FORMAT_R8_UINT:
+      result = 1;
+      break;
+    case VK_FORMAT_R8_SINT:
+      result = 1;
+      break;
+    case VK_FORMAT_R8_SRGB:
+      result = 1;
+      break;
+    case VK_FORMAT_R8G8_UNORM:
+      result = 2;
+      break;
+    case VK_FORMAT_R8G8_SNORM:
+      result = 2;
+      break;
+    case VK_FORMAT_R8G8_USCALED:
+      result = 2;
+      break;
+    case VK_FORMAT_R8G8_SSCALED:
+      result = 2;
+      break;
+    case VK_FORMAT_R8G8_UINT:
+      result = 2;
+      break;
+    case VK_FORMAT_R8G8_SINT:
+      result = 2;
+      break;
+    case VK_FORMAT_R8G8_SRGB:
+      result = 2;
+      break;
+    case VK_FORMAT_R8G8B8_UNORM:
+      result = 3;
+      break;
+    case VK_FORMAT_R8G8B8_SNORM:
+      result = 3;
+      break;
+    case VK_FORMAT_R8G8B8_USCALED:
+      result = 3;
+      break;
+    case VK_FORMAT_R8G8B8_SSCALED:
+      result = 3;
+      break;
+    case VK_FORMAT_R8G8B8_UINT:
+      result = 3;
+      break;
+    case VK_FORMAT_R8G8B8_SINT:
+      result = 3;
+      break;
+    case VK_FORMAT_R8G8B8_SRGB:
+      result = 3;
+      break;
+    case VK_FORMAT_B8G8R8_UNORM:
+      result = 3;
+      break;
+    case VK_FORMAT_B8G8R8_SNORM:
+      result = 3;
+      break;
+    case VK_FORMAT_B8G8R8_USCALED:
+      result = 3;
+      break;
+    case VK_FORMAT_B8G8R8_SSCALED:
+      result = 3;
+      break;
+    case VK_FORMAT_B8G8R8_UINT:
+      result = 3;
+      break;
+    case VK_FORMAT_B8G8R8_SINT:
+      result = 3;
+      break;
+    case VK_FORMAT_B8G8R8_SRGB:
+      result = 3;
+      break;
+    case VK_FORMAT_R8G8B8A8_UNORM:
+      result = 4;
+      break;
+    case VK_FORMAT_R8G8B8A8_SNORM:
+      result = 4;
+      break;
+    case VK_FORMAT_R8G8B8A8_USCALED:
+      result = 4;
+      break;
+    case VK_FORMAT_R8G8B8A8_SSCALED:
+      result = 4;
+      break;
+    case VK_FORMAT_R8G8B8A8_UINT:
+      result = 4;
+      break;
+    case VK_FORMAT_R8G8B8A8_SINT:
+      result = 4;
+      break;
+    case VK_FORMAT_R8G8B8A8_SRGB:
+      result = 4;
+      break;
+    case VK_FORMAT_B8G8R8A8_UNORM:
+      result = 4;
+      break;
+    case VK_FORMAT_B8G8R8A8_SNORM:
+      result = 4;
+      break;
+    case VK_FORMAT_B8G8R8A8_USCALED:
+      result = 4;
+      break;
+    case VK_FORMAT_B8G8R8A8_SSCALED:
+      result = 4;
+      break;
+    case VK_FORMAT_B8G8R8A8_UINT:
+      result = 4;
+      break;
+    case VK_FORMAT_B8G8R8A8_SINT:
+      result = 4;
+      break;
+    case VK_FORMAT_B8G8R8A8_SRGB:
+      result = 4;
+      break;
+    case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A8B8G8R8_SNORM_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A8B8G8R8_USCALED_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A8B8G8R8_SSCALED_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A8B8G8R8_UINT_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A8B8G8R8_SINT_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2R10G10B10_SNORM_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2R10G10B10_USCALED_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2R10G10B10_SSCALED_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2R10G10B10_UINT_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2R10G10B10_SINT_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2B10G10R10_SNORM_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2B10G10R10_USCALED_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2B10G10R10_SSCALED_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2B10G10R10_UINT_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_A2B10G10R10_SINT_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_R16_UNORM:
+      result = 2;
+      break;
+    case VK_FORMAT_R16_SNORM:
+      result = 2;
+      break;
+    case VK_FORMAT_R16_USCALED:
+      result = 2;
+      break;
+    case VK_FORMAT_R16_SSCALED:
+      result = 2;
+      break;
+    case VK_FORMAT_R16_UINT:
+      result = 2;
+      break;
+    case VK_FORMAT_R16_SINT:
+      result = 2;
+      break;
+    case VK_FORMAT_R16_SFLOAT:
+      result = 2;
+      break;
+    case VK_FORMAT_R16G16_UNORM:
+      result = 4;
+      break;
+    case VK_FORMAT_R16G16_SNORM:
+      result = 4;
+      break;
+    case VK_FORMAT_R16G16_USCALED:
+      result = 4;
+      break;
+    case VK_FORMAT_R16G16_SSCALED:
+      result = 4;
+      break;
+    case VK_FORMAT_R16G16_UINT:
+      result = 4;
+      break;
+    case VK_FORMAT_R16G16_SINT:
+      result = 4;
+      break;
+    case VK_FORMAT_R16G16_SFLOAT:
+      result = 4;
+      break;
+    case VK_FORMAT_R16G16B16_UNORM:
+      result = 6;
+      break;
+    case VK_FORMAT_R16G16B16_SNORM:
+      result = 6;
+      break;
+    case VK_FORMAT_R16G16B16_USCALED:
+      result = 6;
+      break;
+    case VK_FORMAT_R16G16B16_SSCALED:
+      result = 6;
+      break;
+    case VK_FORMAT_R16G16B16_UINT:
+      result = 6;
+      break;
+    case VK_FORMAT_R16G16B16_SINT:
+      result = 6;
+      break;
+    case VK_FORMAT_R16G16B16_SFLOAT:
+      result = 6;
+      break;
+    case VK_FORMAT_R16G16B16A16_UNORM:
+      result = 8;
+      break;
+    case VK_FORMAT_R16G16B16A16_SNORM:
+      result = 8;
+      break;
+    case VK_FORMAT_R16G16B16A16_USCALED:
+      result = 8;
+      break;
+    case VK_FORMAT_R16G16B16A16_SSCALED:
+      result = 8;
+      break;
+    case VK_FORMAT_R16G16B16A16_UINT:
+      result = 8;
+      break;
+    case VK_FORMAT_R16G16B16A16_SINT:
+      result = 8;
+      break;
+    case VK_FORMAT_R16G16B16A16_SFLOAT:
+      result = 8;
+      break;
+    case VK_FORMAT_R32_UINT:
+      result = 4;
+      break;
+    case VK_FORMAT_R32_SINT:
+      result = 4;
+      break;
+    case VK_FORMAT_R32_SFLOAT:
+      result = 4;
+      break;
+    case VK_FORMAT_R32G32_UINT:
+      result = 8;
+      break;
+    case VK_FORMAT_R32G32_SINT:
+      result = 8;
+      break;
+    case VK_FORMAT_R32G32_SFLOAT:
+      result = 8;
+      break;
+    case VK_FORMAT_R32G32B32_UINT:
+      result = 12;
+      break;
+    case VK_FORMAT_R32G32B32_SINT:
+      result = 12;
+      break;
+    case VK_FORMAT_R32G32B32_SFLOAT:
+      result = 12;
+      break;
+    case VK_FORMAT_R32G32B32A32_UINT:
+      result = 16;
+      break;
+    case VK_FORMAT_R32G32B32A32_SINT:
+      result = 16;
+      break;
+    case VK_FORMAT_R32G32B32A32_SFLOAT:
+      result = 16;
+      break;
+    case VK_FORMAT_R64_UINT:
+      result = 8;
+      break;
+    case VK_FORMAT_R64_SINT:
+      result = 8;
+      break;
+    case VK_FORMAT_R64_SFLOAT:
+      result = 8;
+      break;
+    case VK_FORMAT_R64G64_UINT:
+      result = 16;
+      break;
+    case VK_FORMAT_R64G64_SINT:
+      result = 16;
+      break;
+    case VK_FORMAT_R64G64_SFLOAT:
+      result = 16;
+      break;
+    case VK_FORMAT_R64G64B64_UINT:
+      result = 24;
+      break;
+    case VK_FORMAT_R64G64B64_SINT:
+      result = 24;
+      break;
+    case VK_FORMAT_R64G64B64_SFLOAT:
+      result = 24;
+      break;
+    case VK_FORMAT_R64G64B64A64_UINT:
+      result = 32;
+      break;
+    case VK_FORMAT_R64G64B64A64_SINT:
+      result = 32;
+      break;
+    case VK_FORMAT_R64G64B64A64_SFLOAT:
+      result = 32;
+      break;
+    case VK_FORMAT_B10G11R11_UFLOAT_PACK32:
+      result = 4;
+      break;
+    case VK_FORMAT_E5B9G9R9_UFLOAT_PACK32:
+      result = 4;
+      break;
+
+    default:
+      break;
+  }
+  return result;
+}
+void _printAttributeDescriptions(VkVertexInputAttributeDescription* p_attribs, size_t attribs_count) {
+    for (unsigned int i = 0; i < attribs_count; ++i) {
+        printf("attrib %d\n", i);
+        printf("\t%d\n", p_attribs[i].location);
+        printf("\t%d\n", p_attribs[i].binding);
+        printf("\t%d\n", p_attribs[i].format);
+        printf("\t%d\n", p_attribs[i].offset);
+    }
+}
+
+VkVertexInputAttributeDescription* gpi_Shader_Create_VertexInputAttribDesc( 
+	const Gpi_Shader shader,
+	unsigned int* p_attribute_count, 
+	unsigned int* p_binding_stride) 
+{
+	VERIFY(p_attribute_count, " ");
+	VERIFY(p_binding_stride, " ");
+    VERIFY(shader.reflect_shader_module.shader_stage == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT, "Provided shader is not a vertex shader\n");
+
+    // Enumerate input variables
+    uint32_t input_var_count = 0;
+    TRACK(SpvReflectResult result = spvReflectEnumerateInputVariables(&shader.reflect_shader_module, &input_var_count, NULL));
+    VERIFY(result == SPV_REFLECT_RESULT_SUCCESS, "Failed to enumerate input variables\n");
+
+    TRACK(SpvReflectInterfaceVariable** input_vars = alloc(NULL, input_var_count * sizeof(SpvReflectInterfaceVariable*)));
+    VERIFY(input_vars, "Failed to allocate memory for input variables\n");
+
+    TRACK(result = spvReflectEnumerateInputVariables(&shader.reflect_shader_module, &input_var_count, input_vars));
+    VERIFY(result == SPV_REFLECT_RESULT_SUCCESS, "Failed to get input variables\n");
+
+    // Create an array to hold VkVertexInputAttributeDescription
+    TRACK(VkVertexInputAttributeDescription* attribute_descriptions = alloc(NULL, input_var_count * sizeof(VkVertexInputAttributeDescription)));
+    VERIFY(attribute_descriptions, "Failed to allocate memory for vertex input attribute descriptions\n");
+
+    uint32_t attribute_index = 0;
+    for (uint32_t i = 0; i < input_var_count; ++i) {
+        SpvReflectInterfaceVariable* refl_var = input_vars[i];
+
+        // Ignore built-in variables
+        if (refl_var->decoration_flags & SPV_REFLECT_DECORATION_BUILT_IN) {
+            continue;
+        }
+
+        VkVertexInputAttributeDescription attr_desc = {};
+        attr_desc.location = refl_var->location;
+        attr_desc.binding = 0;
+        attr_desc.format = (VkFormat)refl_var->format;
+        attr_desc.offset = 0; // WILL CALCULATE OFFSET LATER
+        attribute_descriptions[attribute_index++] = attr_desc;
+    }
+
+    // Update the attribute count
+    *p_attribute_count = attribute_index;
+
+    // Sort attributes by location
+    for (uint32_t i = 0; i < attribute_index - 1; ++i) {
+        for (uint32_t j = 0; j < attribute_index - i - 1; ++j) {
+            if (attribute_descriptions[j].location > attribute_descriptions[j + 1].location) {
+                VkVertexInputAttributeDescription temp = attribute_descriptions[j];
+                attribute_descriptions[j] = attribute_descriptions[j + 1];
+                attribute_descriptions[j + 1] = temp;
+            }
+        }
+    }
+
+    // Compute offsets and binding stride
+    uint32_t offset = 0;
+    for (uint32_t i = 0; i < attribute_index; ++i) {
+        VkVertexInputAttributeDescription* attr_desc = &attribute_descriptions[i];
+        TRACK(uint32_t format_size = _formatSize(attr_desc->format));
+
+        if (format_size == 0) {
+            printf("Unsupported format for input variable at location %u\n", attr_desc->location);
+            continue;
+        }
+
+        // Align the offset if necessary (e.g., 4-byte alignment)
+        uint32_t alignment = 4;
+        offset = (offset + (alignment - 1)) & ~(alignment - 1);
+        attr_desc->offset = offset;
+        offset += format_size;
+    }
+
+    *p_binding_stride = offset;
+    free(input_vars);
+    _printAttributeDescriptions(attribute_descriptions, *p_attribute_count);
+
+    return attribute_descriptions;  
+}

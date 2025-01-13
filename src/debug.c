@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <vulkan/vulkan.h>
 
 typedef struct {
     void* ptr;
@@ -106,7 +107,6 @@ void DebugDataInit() {
     sigaction(SIGSEGV, &sa, NULL);
 	sigaction(SIGILL, &sa, NULL);
 	sigaction(SIGFPE, &sa, NULL);
-
 }
 void DebugPrintf(const char* message, size_t line, const char* file) {
 	unsigned int current_time = (unsigned int)(clock() * 1000 / CLOCKS_PER_SEC);
@@ -268,11 +268,34 @@ size_t DebugGetSizeBytes(void* ptr) {
 	return debug_data.all_allocs[index].size_bytes;
 }
 void DebugPrintMemory() {
-	printf("\nunfreed memory\n");
+	printf("\nunfreed memory:\n");
 	for (int i = 0; i < debug_data.all_allocs_count; i++) {
 		printf("	address %p | %zu bytes | at %s:%zu\n",  debug_data.all_allocs[i].ptr,
 															debug_data.all_allocs[i].size_bytes,
 															debug_data.all_allocs[i].file,
 															debug_data.all_allocs[i].line);
 	}
+	printf("\n");
 }
+
+/*
+void* alloc(void* ptr, size_t size) {
+    void* tmp = (ptr == NULL) ? malloc(size) : realloc(ptr, size);
+    if (!tmp) {
+        printf("Memory allocation failed\n");
+        exit(-1);
+    }
+    return tmp;
+}
+
+// VULKAN =================================================================================================================================
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData)
+{
+    printf("Vulkan Debug: %s\n", pCallbackData->pMessage);
+    return VK_FALSE;
+}
+*/

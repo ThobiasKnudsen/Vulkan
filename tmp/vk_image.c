@@ -252,7 +252,7 @@ void vk_Image_TransitionLayout_0(
         .newLayout = new_layout,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = p_image,
+        .image = *p_image,
         .subresourceRange = subresource_range,
     };
 
@@ -404,7 +404,6 @@ void vk_Image_CopyImageFile( Vk* p_vk, Image* p_image, VkImageLayout final_layou
     TRACK(vk_Image_CopyData( p_vk, p_image, final_layout, p_data, rect, pixel_size ));
     TRACK(stbi_image_free(p_data));
 }
-
 Image vk_Image_CreateFromImageFile( Vk* p_vk, const char* filename, VkFormat format, VkImageLayout layout ) {
 
     VERIFY(p_vk, "Vk pointer is NULL.");
@@ -435,5 +434,4 @@ Image vk_Image_CreateFromImageFile( Vk* p_vk, const char* filename, VkFormat for
     TRACK(stbi_image_free(p_data));
 
     return image;
-
 }

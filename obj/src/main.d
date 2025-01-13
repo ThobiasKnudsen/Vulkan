@@ -1,4 +1,4 @@
-obj/src/main.o: src/main.c include/vk.h \
+obj/src/main.o: src/main.c include/gpi.h \
  deps/VulkanMemoryAllocator/include/vk_mem_alloc.h \
  deps/SPIRV-Reflect/spirv_reflect.h \
  deps/SPIRV-Reflect/./include/spirv/unified1/spirv.h include/debug.h

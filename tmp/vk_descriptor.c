@@ -2,7 +2,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-VkDescriptorSetLayoutCreateInfo* vk_DescriptorSetLayoutCreateInfo_Create(Vk* p_vk, const SpvReflectShaderModule* p_shader_modules, unsigned int shader_modules_count, size_t* p_create_info_count) {
+VkDescriptorSetLayoutCreateInfo* vk_DescriptorSetLayoutCreateInfo_Create(
+    Vk* p_vk, 
+    const SpvReflectShaderModule* p_shader_modules, 
+    unsigned int shader_modules_count, 
+    size_t* p_create_info_count) 
+{
     VERIFY(p_vk, "NULL pointer");
     VERIFY(p_shader_modules, "NULL pointer");
     VERIFY(p_create_info_count, "NULL pointer");
@@ -84,7 +89,10 @@ VkDescriptorSetLayoutCreateInfo* vk_DescriptorSetLayoutCreateInfo_Create(Vk* p_v
     *p_create_info_count = create_info_count;
     return p_create_info;
 }
-void vk_DescriptorSetLayoutCreateInfo_Print(const VkDescriptorSetLayoutCreateInfo* p_create_info, const size_t create_info_count) {
+void vk_DescriptorSetLayoutCreateInfo_Print(
+    const VkDescriptorSetLayoutCreateInfo* p_create_info, 
+    const size_t create_info_count) 
+{
     VERIFY(p_create_info, "NULL pointer");
     for (unsigned int i = 0; i < create_info_count; ++i) {
         printf("set_number %u\n", i);
@@ -98,7 +106,11 @@ void vk_DescriptorSetLayoutCreateInfo_Print(const VkDescriptorSetLayoutCreateInf
         }
     }
 }
-VkDescriptorSetLayout* vk_DescriptorSetLayout_Create(Vk* p_vk, const VkDescriptorSetLayoutCreateInfo* p_create_info, const size_t create_info_count) {
+VkDescriptorSetLayout* vk_DescriptorSetLayout_Create(
+    Vk* p_vk, 
+    const VkDescriptorSetLayoutCreateInfo* p_create_info, 
+    const size_t create_info_count) 
+{
 
     VERIFY(p_vk, "p_vk is NULL pointer");
     if (!p_create_info && create_info_count==0) {
@@ -116,7 +128,9 @@ VkDescriptorSetLayout* vk_DescriptorSetLayout_Create(Vk* p_vk, const VkDescripto
 
     return p_set_layout;
 }
-VkDescriptorSetLayout vk_DescriptorSetLayout_Create_0(Vk* p_vk) {
+VkDescriptorSetLayout vk_DescriptorSetLayout_Create_0(
+    Vk* p_vk) 
+{
     VkDescriptorSetLayoutCreateInfo layout_info = {
         .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .bindingCount = 1,
@@ -134,8 +148,11 @@ VkDescriptorSetLayout vk_DescriptorSetLayout_Create_0(Vk* p_vk) {
 
     return descriptorSetLayout;
 }
-VkDescriptorSet* vk_DescriptorSet_Create(Vk* p_vk, const VkDescriptorSetLayout* p_desc_set_layout, size_t desc_set_layouts_count) {
-    
+VkDescriptorSet* vk_DescriptorSet_Create(
+    Vk* p_vk, 
+    const VkDescriptorSetLayout* p_desc_set_layout, 
+    size_t desc_set_layouts_count) 
+{    
     VERIFY(p_vk, "NULL pointer");
     if (!p_desc_set_layout && desc_set_layouts_count == 0) {
         printf("!p_desc_set_layout && desc_set_layouts_count == 0\n");
@@ -165,8 +182,14 @@ VkDescriptorSet* vk_DescriptorSet_Create(Vk* p_vk, const VkDescriptorSetLayout* 
 
     return p_desc_sets;
 }
-VkDescriptorSet* vk_DescriptorSet_Create_0(Vk* p_vk, const VkDescriptorSetLayout* p_desc_set_layout, size_t desc_set_layouts_count, VkBuffer buffer, Image* p_image) {
-    
+VkDescriptorSet* vk_DescriptorSet_Create_0(
+    Vk* p_vk, 
+    const VkDescriptorSetLayout* 
+    p_desc_set_layout, 
+    size_t desc_set_layouts_count, 
+    VkBuffer buffer, 
+    Image* p_image) 
+{    
     VERIFY(p_vk, "NULL pointer");
     VERIFY(p_desc_set_layout, "NULL pointer");
     VERIFY(p_image, "NULL pointer");

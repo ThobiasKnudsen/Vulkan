@@ -499,7 +499,7 @@ Vk vk_Create(unsigned int width, unsigned int height, const char* title) {
         TRACK(vkGetSwapchainImagesKHR(vk.device, vk.swap_chain, &vk.images_count, NULL));
         VERIFY(vk.images_count > 0, "there is 0 images in swapchain");
         if (surfaceCapabilities.maxImageCount > 0) {
-            VERIFY(vk.images_count <= surfaceCapabilities.maxImageCount, "there is more than expected images in swapchain. images_count = %d. maxImageCount = %d", vk.images_count, surfaceCapabilities.maxImageCount);
+            VERIFY(vk.images_count <= surfaceCapabilities.maxImageCount, "there is more than expected images in swapchain. images_count = %ld. maxImageCount = %d", vk.images_count, surfaceCapabilities.maxImageCount);
         } else {
             printf("Note: maxImageCount is 0, indicating no upper limit on image count.\n");
         }

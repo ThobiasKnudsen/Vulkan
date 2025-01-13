@@ -1,0 +1,272 @@
+#include "gpi.h"
+#include "vk.h"
+
+Gpi_DescriptorSets gpi_DescriptorSets_Create(
+	Gpi_Pipeline_Graphics* p_pipeline)
+{
+	VERIFY(p_pipeline, " ");
+    VERIFY(p_pipeline->p_ctx, " ");
+	Gpi_DescriptorSets desc_sets = {0};
+	desc_sets.p_pipeline = p_pipeline;
+	desc_sets.desc_sets_count = p_pipeline->desc_sets_count;
+    TRACK(desc_sets.p_desc_sets = alloc(NULL, desc_sets.desc_sets_count * sizeof(VkDescriptorSet)));
+    VERIFY(desc_sets.p_desc_sets, " ");
+
+    for (size_t set = 0; set < desc_sets.desc_sets_count; ++set) {
+        printf("set %d\n", set);
+        VkDescriptorSetAllocateInfo alloc_info = {
+            .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool     = p_pipeline->p_ctx->descriptor_pool,
+            .descriptorSetCount = 1,
+            .pSetLayouts        = &p_pipeline->p_desc_sets_layout[set]
+        };
+        TRACK(VkResult result = vkAllocateDescriptorSets(p_pipeline->p_ctx->device, &alloc_info, &desc_sets.p_desc_sets[set]));
+        VERIFY(result == VK_SUCCESS, "Failed to allocate descriptor set. result = %d", result);
+    }
+
+    return desc_sets;
+}
+void gpi_DescriptorSets_Destroy(
+	Vk* p_ctx, 
+	Gpi_DescriptorSets* p_desc_sets) 
+{
+    VERIFY(p_desc_sets, "NULL pointer");
+    VERIFY(p_ctx, "NULL pointer");
+
+    if (p_desc_sets->p_desc_sets) {
+        vkFreeDescriptorSets(p_ctx->device, p_ctx->descriptor_pool, p_desc_sets->desc_sets_count, p_desc_sets->p_desc_sets);
+        free(p_desc_sets->p_desc_sets);
+    }
+    if (p_desc_sets->p_pipeline) {
+        // Assuming p_pipeline is managed elsewhere, we do not destroy it here
+        memset(p_desc_sets->p_pipeline, 0, sizeof(Gpi_Pipeline_Graphics));
+    }
+    memset(p_desc_sets, 0, sizeof(Gpi_DescriptorSets));
+}
+void gpi_DescriptorSets_UpdateUniformBuffer(
+	Gpi_DescriptorSets* p_desc_sets, 
+	const unsigned int set, 
+	const unsigned int binding, 
+	const unsigned int array_element, 
+	const Buffer* p_buffer, 
+	const VkDeviceSize offset, 
+	const VkDeviceSize range) 
+{
+    VERIFY(p_desc_sets, "set %d binding %d array_element %d", set, binding, array_element);
+    VERIFY(p_desc_sets->p_pipeline, "set %d binding %d array_element %d", set, binding, array_element);
+    Gpi_Pipeline_Graphics* p_pipeline = p_desc_sets->p_pipeline;
+    VERIFY(p_pipeline->p_ctx, "set %d binding %d array_element %d", set, binding, array_element);
+    VERIFY(p_pipeline->p_desc_sets_layout_create_info, "set %d binding %d array_element %d", set, binding, array_element);
+    VERIFY(p_buffer, "set %d binding %d array_element %d", set, binding, array_element);
+    if (range != VK_WHOLE_SIZE)
+    	VERIFY(offset + range < p_buffer->size, "set %d binding %d array_element %d", set, binding, array_element);
+    else
+		VERIFY(offset < p_buffer->size, "set %d binding %d array_element %d", set, binding, array_element);
+    VERIFY(p_pipeline, "set %d binding %d array_element %d", set, binding, array_element);
+    VERIFY(set < p_pipeline->desc_sets_count, "Set index out of range. set %d binding %d array_element %d", set, binding, array_element);
+    unsigned int binding_index = UINT32_MAX; // Sentinel value, assuming no binding will exceed this
+
+    for (unsigned int i = 0; i < p_pipeline->p_desc_sets_layout_create_info[set].bindingCount; ++i) {
+        if (binding == p_pipeline->p_desc_sets_layout_create_info[set].pBindings[i].binding) {
+            binding_index = i;
+            break;
+        }
+    }
+
+    VERIFY(binding_index != UINT32_MAX, "Binding does not exist in graphics pipeline. set %d binding %d array_element %d", set, binding, array_element);
+    VERIFY(p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, "Binding is not a uniform buffer type");
+    VERIFY(array_element < p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorCount, "Array element is out of bounds for this binding");
+
+    VkWriteDescriptorSet desc_write = {
+        .sType              = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet             = p_desc_sets->p_desc_sets[set],
+        .dstBinding         = binding,
+        .dstArrayElement    = array_element,
+        .descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount    = 1,
+        .pBufferInfo        = &(VkDescriptorBufferInfo){
+            .buffer = p_buffer->buffer,
+            .offset = offset,
+            .range  = range,
+        }
+    };
+
+    TRACK(vkUpdateDescriptorSets(p_pipeline->p_ctx->device, 1, &desc_write, 0, NULL));
+}
+void gpi_DescriptorSets_UpdateCombinedImageSampler(
+	Gpi_DescriptorSets* p_desc_sets, 
+	const unsigned int set, 
+	const unsigned int binding, 
+	const unsigned int array_element, 
+	const Image* p_image) 
+{
+    VERIFY(p_desc_sets, "NULL pointer");
+    VERIFY(p_image, "NULL pointer");
+    Gpi_Pipeline_Graphics* p_pipeline = p_desc_sets->p_pipeline;
+    VERIFY(p_pipeline, "NULL pointer");
+    VERIFY(set < p_pipeline->desc_sets_count, "Set index out of range");
+
+    unsigned int binding_index = UINT32_MAX;
+
+    for (unsigned int i = 0; i < p_pipeline->p_desc_sets_layout_create_info[set].bindingCount; ++i) {
+        if (binding == p_pipeline->p_desc_sets_layout_create_info[set].pBindings[i].binding) {
+            binding_index = i;
+            break;
+        }
+    }
+
+    VERIFY(binding_index != UINT32_MAX, "Could not find the specified binding");
+    VERIFY(p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, "Binding is not of type COMBINED_IMAGE_SAMPLER");
+    VERIFY(array_element < p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorCount, "Array element is out of bounds");
+
+    VkDescriptorImageInfo image_info = {
+        .sampler     = p_image->sampler,
+        .imageView   = p_image->view,
+        .imageLayout = p_image->layout
+    };
+
+    VkWriteDescriptorSet desc_write = {
+        .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet           = p_desc_sets->p_desc_sets[set],
+        .dstBinding       = binding,
+        .dstArrayElement  = array_element,
+        .descriptorType   = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        .descriptorCount  = 1,
+        .pImageInfo       = &image_info
+    };
+
+    TRACK(vkUpdateDescriptorSets(p_pipeline->p_ctx->device, 1, &desc_write, 0, NULL));
+}
+void gpi_DescriptorSets_UpdateSampledImage(
+	Gpi_DescriptorSets* p_desc_sets, 
+	const unsigned int set, 
+	const unsigned int binding, 
+	const unsigned int array_element, 
+	const VkImageView image_view, 
+	const VkImageLayout image_layout) 
+{
+    VERIFY(p_desc_sets, "NULL pointer");
+    Gpi_Pipeline_Graphics* p_pipeline = p_desc_sets->p_pipeline;
+    VERIFY(p_pipeline, "NULL pointer");
+    VERIFY(set < p_pipeline->desc_sets_count, "Set index out of range");
+
+    unsigned int binding_index = UINT32_MAX;
+
+    for (unsigned int i = 0; i < p_pipeline->p_desc_sets_layout_create_info[set].bindingCount; ++i) {
+        if (binding == p_pipeline->p_desc_sets_layout_create_info[set].pBindings[i].binding) {
+            binding_index = i;
+            break;
+        }
+    }
+
+    VERIFY(binding_index != UINT32_MAX, "Could not find the specified binding");
+    VERIFY(p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, "Binding is not of type SAMPLED_IMAGE");
+    VERIFY(array_element < p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorCount, "Array element is out of bounds");
+
+    VkDescriptorImageInfo image_info = {
+        .sampler     = VK_NULL_HANDLE,
+        .imageView   = image_view,
+        .imageLayout = image_layout
+    };
+
+    VkWriteDescriptorSet desc_write = {
+        .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet          = p_desc_sets->p_desc_sets[set],
+        .dstBinding      = binding,
+        .dstArrayElement = array_element,
+        .descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        .descriptorCount = 1,
+        .pImageInfo      = &image_info
+    };
+
+    TRACK(vkUpdateDescriptorSets(p_pipeline->p_ctx->device, 1, &desc_write, 0, NULL));
+}
+void gpi_DescriptorSets_UpdateStorageImage(
+	Gpi_DescriptorSets* p_desc_sets, 
+	const unsigned int set, 
+	const unsigned int binding, 
+	const unsigned int array_element, 
+	const VkImageView image_view, 
+	const VkImageLayout image_layout) 
+{
+    VERIFY(p_desc_sets, "NULL pointer");
+    Gpi_Pipeline_Graphics* p_pipeline = p_desc_sets->p_pipeline;
+    VERIFY(p_pipeline, "NULL pointer");
+    VERIFY(set < p_pipeline->desc_sets_count, "Set index out of range");
+
+    unsigned int binding_index = UINT32_MAX;
+
+    for (unsigned int i = 0; i < p_pipeline->p_desc_sets_layout_create_info[set].bindingCount; ++i) {
+        if (binding == p_pipeline->p_desc_sets_layout_create_info[set].pBindings[i].binding) {
+            binding_index = i;
+            break;
+        }
+    }
+
+    VERIFY(binding_index != UINT32_MAX, "Could not find the specified binding");
+    VERIFY(p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, "Binding is not of type STORAGE_IMAGE");
+    VERIFY(array_element < p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorCount, "Array element is out of bounds");
+
+    VkDescriptorImageInfo image_info = {
+        .sampler     = VK_NULL_HANDLE,
+        .imageView   = image_view,
+        .imageLayout = image_layout
+    };
+
+    VkWriteDescriptorSet desc_write = {
+        .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet          = p_desc_sets->p_desc_sets[set],
+        .dstBinding      = binding,
+        .dstArrayElement = array_element,
+        .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+        .descriptorCount = 1,
+        .pImageInfo      = &image_info
+    };
+
+    TRACK(vkUpdateDescriptorSets(p_pipeline->p_ctx->device, 1, &desc_write, 0, NULL));
+}
+void gpi_DescriptorSets_UpdateStorageBuffer(
+	Gpi_DescriptorSets* p_desc_sets, 
+	const unsigned int set, 
+	const unsigned int binding,
+	const unsigned int array_element, 
+	const Gpi_Buffer buffer, 
+	const VkDeviceSize offset, 
+	const VkDeviceSize range) 
+{
+    VERIFY(p_desc_sets, "NULL pointer");
+    Gpi_Pipeline_Graphics* p_pipeline = p_desc_sets->p_pipeline;
+    VERIFY(p_pipeline, "NULL pointer");
+    VERIFY(set < p_pipeline->desc_sets_count, "Set index out of range");
+
+    unsigned int binding_index = UINT32_MAX;
+
+    for (unsigned int i = 0; i < p_pipeline->p_desc_sets_layout_create_info[set].bindingCount; ++i) {
+        if (binding == p_pipeline->p_desc_sets_layout_create_info[set].pBindings[i].binding) {
+            binding_index = i;
+            break;
+        }
+    }
+
+    VERIFY(binding_index != UINT32_MAX, "Could not find the specified binding");
+    VERIFY(p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, "Binding is not of type STORAGE_BUFFER");
+    VERIFY(array_element < p_pipeline->p_desc_sets_layout_create_info[set].pBindings[binding_index].descriptorCount, "Array element is out of bounds");
+
+    VkDescriptorBufferInfo buffer_info = {
+        .buffer = buffer.buffer,
+        .offset = offset,
+        .range  = range,
+    };
+
+    VkWriteDescriptorSet desc_write = {
+        .sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet           = p_desc_sets->p_desc_sets[set],
+        .dstBinding       = binding,
+        .dstArrayElement  = array_element,
+        .descriptorType   = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .descriptorCount  = 1,
+        .pBufferInfo      = &buffer_info
+    };
+
+    TRACK(vkUpdateDescriptorSets(p_pipeline->p_ctx->device, 1, &desc_write, 0, NULL));
+}
